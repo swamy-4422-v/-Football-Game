@@ -1,0 +1,584 @@
+/* Football Game CSS */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background: linear-gradient(135deg, #1a2980, #26d0ce);
+    color: white;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Header Styles */
+header {
+    text-align: center;
+    margin-bottom: 20px;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 15px;
+}
+
+h1 {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    color: #fff;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+h1 span {
+    color: #ffd700;
+}
+
+.game-info {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-top: 20px;
+}
+
+.info-box {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 15px 25px;
+    border-radius: 10px;
+    text-align: center;
+    min-width: 150px;
+}
+
+.score {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #ffd700;
+}
+
+.time {
+    font-size: 1.8rem;
+    color: #00ff88;
+}
+
+/* Football Field Container */
+.field-container {
+    position: relative;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 20px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.football-field {
+    width: 100%;
+    height: 500px;
+    background: #2e8b57;
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
+    border: 4px solid white;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Field Markings */
+.center-circle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100px;
+    height: 100px;
+    border: 2px solid white;
+    border-radius: 50%;
+}
+
+.center-spot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+    height: 10px;
+    background: white;
+    border-radius: 50%;
+}
+
+.penalty-area {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 120px;
+    height: 320px;
+    border: 2px solid white;
+}
+
+.left-penalty {
+    left: 0;
+    border-right: none;
+}
+
+.right-penalty {
+    right: 0;
+    border-left: none;
+}
+
+.goal {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 10px;
+    height: 140px;
+    background: white;
+}
+
+.left-goal {
+    left: 0;
+}
+
+.right-goal {
+    right: 0;
+}
+
+.halfway-line {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 100%;
+    background: white;
+}
+
+/* Football Ball */
+.football {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    background: white;
+    border-radius: 50%;
+    z-index: 100;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    transition: all 0.1s ease-out;
+    cursor: pointer;
+}
+
+.ball-pattern {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 22px;
+    height: 22px;
+    background: 
+        radial-gradient(circle at 30% 30%, #333 2px, transparent 3px),
+        radial-gradient(circle at 70% 30%, #333 2px, transparent 3px),
+        radial-gradient(circle at 50% 70%, #333 2px, transparent 3px),
+        radial-gradient(circle at 30% 50%, #333 2px, transparent 3px),
+        radial-gradient(circle at 70% 50%, #333 2px, transparent 3px);
+}
+
+/* Player */
+.player {
+    position: absolute;
+    width: 40px;
+    height: 60px;
+    z-index: 50;
+    transition: all 0.3s ease-out;
+    cursor: pointer;
+}
+
+.player-body {
+    position: absolute;
+    width: 25px;
+    height: 40px;
+    bottom: 0;
+    left: 7px;
+    border-radius: 8px 8px 4px 4px;
+}
+
+.player-head {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    top: 0;
+    left: 10px;
+    background: #FFCC99;
+    border-radius: 50%;
+    border: 2px solid #333;
+}
+
+.player-jersey {
+    position: absolute;
+    width: 100%;
+    height: 28px;
+    bottom: 20px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 14px;
+    color: white;
+    border: 2px solid white;
+}
+
+.player-legs {
+    position: absolute;
+    width: 25px;
+    height: 20px;
+    bottom: 0;
+    left: 7px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.leg {
+    width: 6px;
+    height: 20px;
+    background: #333;
+    border-radius: 0 0 3px 3px;
+}
+
+/* Team Colors */
+.team-a .player-body {
+    background: linear-gradient(to bottom, #2563eb, #3b82f6);
+}
+
+.team-a .player-jersey {
+    background: linear-gradient(to bottom, #2563eb, #3b82f6);
+}
+
+.team-b .player-body {
+    background: linear-gradient(to bottom, #dc2626, #ef4444);
+}
+
+.team-b .player-jersey {
+    background: linear-gradient(to bottom, #dc2626, #ef4444);
+}
+
+.goalkeeper .player-body {
+    background: linear-gradient(to bottom, #f59e0b, #fbbf24);
+}
+
+.goalkeeper .player-jersey {
+    background: linear-gradient(to bottom, #f59e0b, #fbbf24);
+}
+
+/* Selected Player */
+.player.selected {
+    animation: pulse 1s infinite;
+    filter: drop-shadow(0 0 8px #00ff88);
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* Player with Ball */
+.player.has-ball::after {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 20px;
+    height: 20px;
+    background: radial-gradient(circle, rgba(0, 255, 136, 0.8) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: glow 2s infinite;
+}
+
+@keyframes glow {
+    0%, 100% { opacity: 0.8; transform: translateX(-50%) scale(1); }
+    50% { opacity: 1; transform: translateX(-50%) scale(1.2); }
+}
+
+/* Running Animation */
+.player.running .leg {
+    animation: run 0.2s infinite alternate;
+}
+
+.player.running .leg:nth-child(2) {
+    animation-delay: 0.1s;
+}
+
+@keyframes run {
+    0% { transform: translateY(0) rotate(0deg); }
+    100% { transform: translateY(-3px) rotate(5deg); }
+}
+
+/* Game Status */
+.game-status {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.status-box {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 15px;
+    border-radius: 10px;
+    text-align: center;
+}
+
+.status-label {
+    color: #00ff88;
+    font-size: 14px;
+    margin-bottom: 5px;
+}
+
+.status-value {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+/* Controls Panel */
+.controls-panel {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 15px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.movement-controls, .action-controls {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 20px;
+    border-radius: 10px;
+}
+
+h3 {
+    color: #ffd700;
+    margin-bottom: 15px;
+    font-size: 1.3rem;
+}
+
+/* Arrow Controls */
+.arrow-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    max-width: 200px;
+    margin: 0 auto;
+}
+
+.arrow-btn {
+    width: 60px;
+    height: 60px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.arrow-btn:hover {
+    transform: scale(1.05);
+    background: linear-gradient(135deg, #60a5fa, #3b82f6);
+}
+
+.arrow-btn:active {
+    transform: scale(0.95);
+}
+
+/* Action Buttons */
+.action-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+}
+
+.action-btn {
+    padding: 15px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    font-weight: bold;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.action-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(16, 185, 129, 0.4);
+}
+
+#pass-btn {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+}
+
+#shoot-btn {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+#sprint-btn {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+#select-btn {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.action-btn i {
+    font-size: 20px;
+}
+
+/* Game Control Buttons */
+.game-control-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+/* Events Log */
+.events-log {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 15px;
+    border-radius: 10px;
+    margin-top: 20px;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.event {
+    padding: 8px 12px;
+    margin-bottom: 5px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    border-left: 3px solid #00ff88;
+    font-size: 14px;
+}
+
+.event.goal {
+    background: rgba(34, 197, 94, 0.2);
+    border-left-color: #22c55e;
+}
+
+.event.pass {
+    background: rgba(59, 130, 246, 0.2);
+    border-left-color: #3b82f6;
+}
+
+/* Instructions */
+.instructions {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 15px;
+    border-radius: 10px;
+    margin-top: 20px;
+    font-size: 14px;
+    color: #ccc;
+}
+
+.instructions ul {
+    padding-left: 20px;
+    margin-top: 10px;
+}
+
+.instructions li {
+    margin-bottom: 5px;
+}
+
+/* Footer */
+footer {
+    text-align: center;
+    margin-top: 20px;
+    padding: 15px;
+    color: #ccc;
+    font-size: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .controls-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .football-field {
+        height: 400px;
+    }
+    
+    .arrow-grid {
+        max-width: 150px;
+    }
+    
+    .arrow-btn {
+        width: 45px;
+        height: 45px;
+        font-size: 18px;
+    }
+    
+    .game-status {
+        grid-template-columns: 1fr;
+    }
+    
+    h1 {
+        font-size: 2rem;
+    }
+    
+    .game-control-buttons {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .action-btn {
+        width: 200px;
+    }
+}
+
+@media (max-width: 480px) {
+    .football-field {
+        height: 350px;
+    }
+    
+    .player {
+        width: 35px;
+        height: 52px;
+    }
+    
+    .player-jersey {
+        font-size: 12px;
+    }
+    
+    .football {
+        width: 25px;
+        height: 25px;
+    }
+    
+    .info-box {
+        min-width: 120px;
+        padding: 10px 15px;
+    }
+    
+    .score {
+        font-size: 2rem;
+    }
+    
+    .time {
+        font-size: 1.5rem;
+    }
+}

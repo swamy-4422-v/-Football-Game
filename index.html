@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Football Game - Player & Ball Movement</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚽ <span>Football</span> Game</h1>
+            <div class="game-info">
+                <div class="info-box">
+                    <div>Score</div>
+                    <div class="score"><span id="team-a-score">0</span> - <span id="team-b-score">0</span></div>
+                </div>
+                <div class="info-box">
+                    <div>Time</div>
+                    <div class="time" id="match-time">00:00</div>
+                </div>
+                <div class="info-box">
+                    <div>Possession</div>
+                    <div id="possession">50% - 50%</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Football Field -->
+        <div class="field-container">
+            <div class="football-field" id="football-field">
+                <!-- Field Markings -->
+                <div class="center-circle"></div>
+                <div class="center-spot"></div>
+                <div class="penalty-area left-penalty"></div>
+                <div class="penalty-area right-penalty"></div>
+                <div class="goal left-goal"></div>
+                <div class="goal right-goal"></div>
+                <div class="halfway-line"></div>
+                
+                <!-- Players and Ball will be added here by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Game Status -->
+        <div class="game-status">
+            <div class="status-box">
+                <div class="status-label">Ball With</div>
+                <div class="status-value" id="ball-possession">No one</div>
+            </div>
+            <div class="status-box">
+                <div class="status-label">Selected Player</div>
+                <div class="status-value" id="selected-player">None</div>
+            </div>
+            <div class="status-box">
+                <div class="status-label">Game Status</div>
+                <div class="status-value" id="game-status">Ready</div>
+            </div>
+        </div>
+
+        <!-- Controls Panel -->
+        <div class="controls-panel">
+            <div class="controls-grid">
+                <div class="movement-controls">
+                    <h3><i class="fas fa-arrows-alt"></i> Movement Controls</h3>
+                    <div class="arrow-grid">
+                        <div></div>
+                        <button class="arrow-btn" id="move-up">
+                            <i class="fas fa-arrow-up"></i>
+                        </button>
+                        <div></div>
+                        <button class="arrow-btn" id="move-left">
+                            <i class="fas fa-arrow-left"></i>
+                        </button>
+                        <button class="arrow-btn" id="move-down">
+                            <i class="fas fa-arrow-down"></i>
+                        </button>
+                        <button class="arrow-btn" id="move-right">
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="action-controls">
+                    <h3><i class="fas fa-gamepad"></i> Action Controls</h3>
+                    <div class="action-buttons">
+                        <button class="action-btn" id="pass-btn">
+                            <i class="fas fa-futbol"></i> Pass (P)
+                        </button>
+                        <button class="action-btn" id="shoot-btn">
+                            <i class="fas fa-bullseye"></i> Shoot (S)
+                        </button>
+                        <button class="action-btn" id="sprint-btn">
+                            <i class="fas fa-running"></i> Sprint (Shift)
+                        </button>
+                        <button class="action-btn" id="select-btn">
+                            <i class="fas fa-user"></i> Select (C)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Game Control Buttons -->
+            <div class="game-control-buttons">
+                <button class="action-btn" id="start-btn">
+                    <i class="fas fa-play"></i> Start Game
+                </button>
+                <button class="action-btn" id="pause-btn">
+                    <i class="fas fa-pause"></i> Pause
+                </button>
+                <button class="action-btn" id="reset-btn">
+                    <i class="fas fa-redo"></i> Reset
+                </button>
+            </div>
+        </div>
+
+        <!-- Events Log -->
+        <div class="events-log">
+            <h3><i class="fas fa-list-alt"></i> Game Events</h3>
+            <div id="event-log">
+                <div class="event">Welcome to Football Game!</div>
+                <div class="event">Click on a blue player to select them</div>
+                <div class="event">Use arrow buttons or WASD keys to move</div>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="instructions">
+            <h3><i class="fas fa-info-circle"></i> How to Play</h3>
+            <ul>
+                <li><strong>Select Player:</strong> Click on any blue player or press C to cycle</li>
+                <li><strong>Move Player:</strong> Use arrow buttons or WASD keys</li>
+                <li><strong>Sprint:</strong> Hold Shift while moving or click Sprint button</li>
+                <li><strong>Pass Ball:</strong> Press P or click Pass button when you have the ball</li>
+                <li><strong>Shoot:</strong> Press S or click Shoot button when near opponent's goal</li>
+                <li><strong>Score Goals:</strong> Get the ball into the red team's goal</li>
+            </ul>
+        </div>
+
+        <footer>
+            <p>Football Game © 2023 | Use arrow buttons or WASD to control players | P to pass | S to shoot</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
