@@ -1,4 +1,4 @@
-// Football Game JavaScript - Complete AI Version
+// Football Game JavaScript - Complete Working Version
 // Game Variables
 let players = [];
 let playersOnField = [];
@@ -13,8 +13,9 @@ let teamBScore = 0;
 let isSprinting = false;
 let possession = { teamA: 50, teamB: 50 };
 let ballAnimationFrame = null;
-let lastUpdateTime = 0;
 let aiUpdateInterval = null;
+let keysPressed = {};
+let shiftPressed = false;
 
 // Player Data
 const playerData = {
@@ -55,12 +56,83 @@ function initGame() {
     updateDisplay();
     addEvent("Game initialized. Click Start to begin!");
     startAIUpdates();
+    startGameLoop();
+}
+
+// Start game loop for smooth movement
+function startGameLoop() {
+    function gameLoop() {
+        if (gameRunning) {
+            updatePlayerMovement();
+            updateBall();
+        }
+        requestAnimationFrame(gameLoop);
+    }
+    gameLoop();
+}
+
+// Update player movement based on keys pressed
+function updatePlayerMovement() {
+    if (!selectedPlayer || !gameRunning) return;
+    
+    let moveX = 0;
+    let moveY = 0;
+    
+    // Check arrow keys
+    if (keysPressed['ArrowUp'] || keysPressed['w'] || keysPressed['W']) moveY -= 1;
+    if (keysPressed['ArrowDown'] || keysPressed['s'] || keysPressed['S']) moveY += 1;
+    if (keysPressed['ArrowLeft'] || keysPressed['a'] || keysPressed['A']) moveX -= 1;
+    if (keysPressed['ArrowRight'] || keysPressed['d'] || keysPressed['D']) moveX += 1;
+    
+    if (moveX !== 0 || moveY !== 0) {
+        // Normalize diagonal movement
+        const length = Math.sqrt(moveX * moveX + moveY * moveY);
+        moveX /= length;
+        moveY /= length;
+        
+        // Apply speed with sprint
+        const speed = shiftPressed || isSprinting ? 2.5 : 1.5;
+        moveSelectedPlayer(moveX * speed, moveY * speed);
+    }
+}
+
+// Move selected player with direction
+function moveSelectedPlayer(deltaX, deltaY) {
+    if (!selectedPlayer) return;
+    
+    let newX = selectedPlayer.x + deltaX;
+    let newY = selectedPlayer.y + deltaY;
+    
+    // Keep within bounds (avoid goals)
+    if (selectedPlayer.team === 'team-a') {
+        newX = Math.max(10, Math.min(95, newX));
+    } else {
+        newX = Math.max(5, Math.min(90, newX));
+    }
+    newY = Math.max(10, Math.min(90, newY));
+    
+    // Update player position
+    selectedPlayer.x = newX;
+    selectedPlayer.y = newY;
+    selectedPlayer.element.style.left = `${newX}%`;
+    selectedPlayer.element.style.top = `${newY}%`;
+    
+    // Start running animation
+    selectedPlayer.element.classList.add('running');
+    
+    // If player has ball, move ball with player
+    if (selectedPlayer.hasBall) {
+        moveBallWithPlayer();
+    }
+    
+    // Check for ball contact
+    checkBallContact();
 }
 
 // Start AI updates
 function startAIUpdates() {
     if (aiUpdateInterval) clearInterval(aiUpdateInterval);
-    aiUpdateInterval = setInterval(updateAllAIPlayers, 100); // Update AI every 100ms
+    aiUpdateInterval = setInterval(updateAITeam, 200); // Update AI every 200ms
 }
 
 // Stop AI updates
@@ -69,6 +141,18 @@ function stopAIUpdates() {
         clearInterval(aiUpdateInterval);
         aiUpdateInterval = null;
     }
+}
+
+// Update AI team
+function updateAITeam() {
+    if (!gameRunning) return;
+    
+    // Update each AI player
+    playersOnField.forEach(player => {
+        if (player.team === 'team-b') {
+            updateAIPlayer(player);
+        }
+    });
 }
 
 // Create players on the field
@@ -137,12 +221,11 @@ function createPlayer(data, team, position) {
         element: playerElement,
         x: position.x,
         y: position.y,
-        targetX: position.x,
-        targetY: position.y,
+        originalPosition: { x: position.x, y: position.y },
         isMoving: false,
         hasBall: false,
-        aiState: 'idle',
-        originalPosition: { x: position.x, y: position.y }
+        targetX: position.x,
+        targetY: position.y
     };
 
     playersOnField.push(player);
@@ -186,52 +269,45 @@ function createBall() {
         isMoving: false
     };
 
-    updateBallPosition();
+    updateBall();
 }
 
 // Update ball position
-function updateBallPosition() {
+function updateBall() {
     if (!ball) return;
     
-    // Only animate if ball is moving
-    if (Math.abs(ball.velocityX) < 0.01 && Math.abs(ball.velocityY) < 0.01 && !ball.withPlayer) {
-        ball.velocityX = 0;
-        ball.velocityY = 0;
-        ball.isMoving = false;
-        ball.element.classList.remove('moving');
-        return;
-    }
-
     // Apply velocity
     ball.x += ball.velocityX;
     ball.y += ball.velocityY;
-
+    
     // Bounce off walls
     if (ball.x <= 2) {
-        ball.velocityX *= -0.7;
+        ball.velocityX *= -0.8;
         ball.x = 2.1;
+        addEvent("Ball hits the wall!");
     }
     if (ball.x >= 98) {
-        ball.velocityX *= -0.7;
+        ball.velocityX *= -0.8;
         ball.x = 97.9;
+        addEvent("Ball hits the wall!");
     }
     if (ball.y <= 2) {
-        ball.velocityY *= -0.7;
+        ball.velocityY *= -0.8;
         ball.y = 2.1;
     }
     if (ball.y >= 98) {
-        ball.velocityY *= -0.7;
+        ball.velocityY *= -0.8;
         ball.y = 97.9;
     }
-
+    
     // Apply friction
-    ball.velocityX *= 0.97;
-    ball.velocityY *= 0.97;
-
+    ball.velocityX *= 0.96;
+    ball.velocityY *= 0.96;
+    
     // Update visual position
     ball.element.style.left = `${ball.x}%`;
     ball.element.style.top = `${ball.y}%`;
-
+    
     // Rotate ball when moving
     if (Math.abs(ball.velocityX) > 0.1 || Math.abs(ball.velocityY) > 0.1) {
         ball.element.classList.add('moving');
@@ -239,68 +315,60 @@ function updateBallPosition() {
     } else {
         ball.element.classList.remove('moving');
         ball.isMoving = false;
+        ball.velocityX = 0;
+        ball.velocityY = 0;
     }
-
+    
     // Check for player contact
     checkBallContact();
-
+    
     // Check for goals
     checkForGoal();
-
-    // Continue animation
+    
+    // Continue animation if still moving
     if (ball.isMoving) {
-        ballAnimationFrame = requestAnimationFrame(updateBallPosition);
+        ballAnimationFrame = requestAnimationFrame(updateBall);
     }
 }
 
 // Check if ball contacts a player
 function checkBallContact() {
     if (!ball || ball.withPlayer || !ball.isMoving) return;
-
-    let closestPlayer = null;
-    let closestDistance = Infinity;
-
+    
     playersOnField.forEach(player => {
         if (player.hasBall) return;
         
         const dx = player.x - ball.x;
         const dy = player.y - ball.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-
-        // Check if ball is close enough to intercept
-        const interceptDistance = 6 + (player.skill / 100) * 2;
-        if (distance < interceptDistance && distance < closestDistance) {
-            closestDistance = distance;
-            closestPlayer = player;
+        
+        if (distance < 8) {
+            giveBallToPlayer(player);
         }
     });
-
-    if (closestPlayer) {
-        giveBallToPlayer(closestPlayer);
-    }
 }
 
 // Give ball to player
 function giveBallToPlayer(player) {
     if (ball.withPlayer === player) return;
-
+    
     // Remove ball from previous player
     if (ball.withPlayer) {
         ball.withPlayer.hasBall = false;
         ball.withPlayer.element.classList.remove('has-ball');
     }
-
+    
     // Give to new player
+    ball.withPlayer = player;
     ballWithPlayer = player;
     player.hasBall = true;
     player.element.classList.add('has-ball');
-
+    
     // Stop ball movement
     ball.velocityX = 0;
     ball.velocityY = 0;
     ball.x = player.x;
     ball.y = player.y - 3;
-    ball.withPlayer = player;
     ball.isMoving = false;
     
     // Cancel animation frame
@@ -308,165 +376,40 @@ function giveBallToPlayer(player) {
         cancelAnimationFrame(ballAnimationFrame);
         ballAnimationFrame = null;
     }
-
+    
     // Update visual position
     ball.element.style.left = `${ball.x}%`;
     ball.element.style.top = `${ball.y}%`;
     ball.element.classList.remove('moving');
-
+    
     // Update display
     updateBallPossession();
     updatePossessionStats(player.team === 'team-a' ? 'teamA' : 'teamB');
     
     addEvent(`${player.name} gets the ball!`, 'pass');
-
-    // Update AI state for all players
-    updatePlayerAIStates();
 }
 
 // Move ball with player
 function moveBallWithPlayer() {
     if (!ball.withPlayer) return;
-
+    
     ball.x = ball.withPlayer.x;
     ball.y = ball.withPlayer.y - 3;
     ball.element.style.left = `${ball.x}%`;
     ball.element.style.top = `${ball.y}%`;
 }
 
-// Update all AI players - Main AI function
-function updateAllAIPlayers() {
-    if (!gameRunning) return;
-    
-    // Update each AI player
-    playersOnField.forEach(player => {
-        if (player.team === 'team-b') { // AI team
-            updateAIPlayer(player);
-        } else if (player.team === 'team-a' && !player.hasBall && ballWithPlayer && ballWithPlayer.team === 'team-b') {
-            // User team players without ball should defend
-            updateDefensivePosition(player);
-        }
-    });
-}
-
-// Update individual AI player
-function updateAIPlayer(player) {
-    if (!player) return;
-    
-    const currentTime = Date.now();
-    if (lastUpdateTime && currentTime - lastUpdateTime < 100) return; // Limit updates
-    
-    lastUpdateTime = currentTime;
-    
-    // Determine AI behavior based on situation
-    if (player.hasBall) {
-        // Player has ball - decide what to do
-        handleAIWithBall(player);
-    } else {
-        // Player doesn't have ball
-        handleAIWithoutBall(player);
-    }
-}
-
-// Handle AI player who has the ball
-function handleAIWithBall(player) {
-    if (!ballWithPlayer || ballWithPlayer !== player) return;
-    
-    // Calculate distances
-    const distanceToGoal = player.team === 'team-b' ? 
-        100 - player.x : // AI shooting at left goal
-        player.x;        // AI shooting at right goal
-    
-    const nearestOpponent = findNearestOpponent(player);
-    const pressureDistance = nearestOpponent ? 
-        Math.sqrt(Math.pow(nearestOpponent.x - player.x, 2) + Math.pow(nearestOpponent.y - player.y, 2)) : 
-        Infinity;
-    
-    // Decision making
-    if (distanceToGoal < 30 && pressureDistance > 8 && Math.random() < 0.7) {
-        // Good position to shoot
-        aiShootBall(player);
-    } else if (pressureDistance < 10 && Math.random() < 0.8) {
-        // Under pressure - pass or dribble
-        if (Math.random() < 0.6) {
-            aiPassBall(player);
-        } else {
-            aiDribble(player);
-        }
-    } else if (Math.random() < 0.4) {
-        // Regular play - pass or dribble
-        if (Math.random() < 0.7) {
-            aiPassBall(player);
-        } else {
-            aiDribble(player);
-        }
-    } else {
-        // Move toward goal
-        aiMoveTowardGoal(player);
-    }
-}
-
-// Handle AI player without the ball
-function handleAIWithoutBall(player) {
-    if (ballWithPlayer) {
-        if (ballWithPlayer.team === player.team) {
-            // Teammate has ball - support or get open
-            aiSupportTeammate(player);
-        } else {
-            // Opponent has ball - defend
-            aiDefend(player);
-        }
-    } else if (ball.isMoving) {
-        // Ball is loose - go toward it
-        aiGoToBall(player);
-    } else {
-        // Return to position
-        aiReturnToPosition(player);
-    }
-}
-
-// AI Shoot
-function aiShootBall(player) {
-    if (!player.hasBall) return;
-    
-    let goalX, goalY;
-    if (player.team === 'team-b') {
-        goalX = 2; // Left goal
-        goalY = 50 + (Math.random() - 0.5) * 15;
-    } else {
-        goalX = 98; // Right goal
-        goalY = 50 + (Math.random() - 0.5) * 15;
+// Pass the ball
+function passBall() {
+    if (!selectedPlayer || selectedPlayer !== ball.withPlayer) {
+        addEvent("You don't have the ball!");
+        return;
     }
     
-    const dx = goalX - ball.x;
-    const dy = goalY - ball.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-    
-    const power = Math.min(10, Math.max(4, player.skill / 12 + Math.random() * 2));
-    const accuracy = player.skill / 100;
-    const randomX = (Math.random() - 0.5) * 4 * (1 - accuracy);
-    const randomY = (Math.random() - 0.5) * 4 * (1 - accuracy);
-
-    ball.velocityX = (dx / distance) * power + randomX;
-    ball.velocityY = (dy / distance) * power + randomY;
-    ball.withPlayer = null;
-    ballWithPlayer = null;
-    player.hasBall = false;
-    player.element.classList.remove('has-ball');
-    ball.isMoving = true;
-
-    addEvent(`${player.name} shoots!`, 'pass');
-    updateBallPosition();
-}
-
-// AI Pass
-function aiPassBall(player) {
-    if (!player.hasBall) return;
-    
+    // Find teammates
     const teammates = playersOnField.filter(p => 
-        p.team === player.team && 
-        p !== player &&
-        !p.hasBall
+        p.team === selectedPlayer.team && 
+        p !== selectedPlayer
     );
     
     if (teammates.length > 0) {
@@ -475,27 +418,20 @@ function aiPassBall(player) {
         let bestScore = -Infinity;
         
         teammates.forEach(teammate => {
-            const distanceToTeammate = Math.sqrt(
-                Math.pow(teammate.x - player.x, 2) + 
-                Math.pow(teammate.y - player.y, 2)
-            );
+            const dx = teammate.x - ball.x;
+            const dy = teammate.y - ball.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
             
-            // Check if teammate is open
-            const nearestOpponent = findNearestOpponent(teammate);
-            const opponentDistance = nearestOpponent ? 
-                Math.sqrt(Math.pow(neammate.x - nearestOpponent.x, 2) + Math.pow(teammate.y - nearestOpponent.y, 2)) : 
-                100;
-            
-            // Calculate score based on position, openness, and skill
-            const positionScore = (teammate.attack / 100) * (teammate.x / 100);
-            const openScore = opponentDistance / 20;
-            const distanceScore = 30 / (distanceToTeammate + 1);
-            
-            const totalScore = positionScore + openScore + distanceScore;
-            
-            if (totalScore > bestScore && distanceToTeammate < 50) {
-                bestScore = totalScore;
-                bestTeammate = teammate;
+            if (distance < 50) {
+                // Calculate score based on position and skill
+                const positionScore = (100 - distance) / 10;
+                const skillScore = teammate.skill / 10;
+                const totalScore = positionScore + skillScore + Math.random() * 5;
+                
+                if (totalScore > bestScore) {
+                    bestScore = totalScore;
+                    bestTeammate = teammate;
+                }
             }
         });
         
@@ -503,68 +439,188 @@ function aiPassBall(player) {
             const dx = bestTeammate.x - ball.x;
             const dy = bestTeammate.y - ball.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
+            const speed = Math.min(5, selectedPlayer.skill / 20);
             
-            const speed = Math.min(6, Math.max(2, player.skill / 20));
-            const accuracy = player.skill / 100;
-            const randomX = (Math.random() - 0.5) * 3 * (1 - accuracy);
-            const randomY = (Math.random() - 0.5) * 3 * (1 - accuracy);
-
-            ball.velocityX = (dx / distance) * speed + randomX;
-            ball.velocityY = (dy / distance) * speed + randomY;
+            // Kick the ball
+            ball.velocityX = (dx / distance) * speed;
+            ball.velocityY = (dy / distance) * speed;
             ball.withPlayer = null;
             ballWithPlayer = null;
-            player.hasBall = false;
-            player.element.classList.remove('has-ball');
+            selectedPlayer.hasBall = false;
+            selectedPlayer.element.classList.remove('has-ball');
             ball.isMoving = true;
-
-            addEvent(`${player.name} passes to ${bestTeammate.name}`, 'pass');
-            updateBallPosition();
-            return;
+            
+            addEvent(`${selectedPlayer.name} passes to ${bestTeammate.name}`, 'pass');
+            updateBall();
+        } else {
+            addEvent("No open teammates to pass to!");
         }
+    } else {
+        addEvent("No teammates found!");
+    }
+}
+
+// Shoot the ball
+function shootBall() {
+    if (!selectedPlayer || selectedPlayer !== ball.withPlayer) {
+        addEvent("You don't have the ball!");
+        return;
     }
     
-    // If no good pass, dribble instead
-    aiDribble(player);
+    // Determine goal to shoot at
+    let goalX, goalY;
+    if (selectedPlayer.team === 'team-a') {
+        goalX = 98; // Right goal
+        goalY = 50 + (Math.random() - 0.5) * 10;
+    } else {
+        goalX = 2; // Left goal
+        goalY = 50 + (Math.random() - 0.5) * 10;
+    }
+    
+    const dx = goalX - ball.x;
+    const dy = goalY - ball.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const power = Math.min(8, selectedPlayer.skill / 15 + Math.random() * 2);
+    
+    // Kick the ball
+    ball.velocityX = (dx / distance) * power;
+    ball.velocityY = (dy / distance) * power;
+    ball.withPlayer = null;
+    ballWithPlayer = null;
+    selectedPlayer.hasBall = false;
+    selectedPlayer.element.classList.remove('has-ball');
+    ball.isMoving = true;
+    
+    addEvent(`${selectedPlayer.name} shoots!`, 'pass');
+    updateBall();
+}
+
+// Update AI player
+function updateAIPlayer(player) {
+    if (!player) return;
+    
+    if (player.hasBall) {
+        handleAIWithBall(player);
+    } else {
+        handleAIWithoutBall(player);
+    }
+}
+
+// Handle AI player with ball
+function handleAIWithBall(player) {
+    if (!ballWithPlayer || ballWithPlayer !== player) return;
+    
+    const decision = Math.random();
+    
+    if (decision < 0.4) {
+        // Pass
+        aiPassBall(player);
+    } else if (decision < 0.8) {
+        // Shoot if close to goal
+        const distanceToGoal = player.team === 'team-b' ? 100 - player.x : player.x;
+        if (distanceToGoal < 40) {
+            aiShootBall(player);
+        } else {
+            aiDribble(player);
+        }
+    } else {
+        // Dribble
+        aiDribble(player);
+    }
+}
+
+// Handle AI player without ball
+function handleAIWithoutBall(player) {
+    if (ballWithPlayer) {
+        if (ballWithPlayer.team === player.team) {
+            // Support teammate with ball
+            moveToSupportPosition(player);
+        } else {
+            // Defend against opponent with ball
+            moveToDefensivePosition(player);
+        }
+    } else if (ball.isMoving) {
+        // Chase loose ball
+        moveTowardBall(player);
+    } else {
+        // Return to position
+        returnToPosition(player);
+    }
+}
+
+// AI Pass
+function aiPassBall(player) {
+    const teammates = playersOnField.filter(p => 
+        p.team === player.team && 
+        p !== player &&
+        !p.hasBall
+    );
+    
+    if (teammates.length > 0) {
+        const target = teammates[Math.floor(Math.random() * teammates.length)];
+        
+        const dx = target.x - ball.x;
+        const dy = target.y - ball.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const speed = Math.min(4, player.skill / 25);
+        
+        ball.velocityX = (dx / distance) * speed;
+        ball.velocityY = (dy / distance) * speed;
+        ball.withPlayer = null;
+        ballWithPlayer = null;
+        player.hasBall = false;
+        player.element.classList.remove('has-ball');
+        ball.isMoving = true;
+        
+        addEvent(`${player.name} passes`, 'pass');
+        updateBall();
+    }
+}
+
+// AI Shoot
+function aiShootBall(player) {
+    let goalX, goalY;
+    if (player.team === 'team-b') {
+        goalX = 2;
+        goalY = 50 + (Math.random() - 0.5) * 15;
+    } else {
+        goalX = 98;
+        goalY = 50 + (Math.random() - 0.5) * 15;
+    }
+    
+    const dx = goalX - ball.x;
+    const dy = goalY - ball.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const power = Math.min(6, player.skill / 20);
+    
+    ball.velocityX = (dx / distance) * power;
+    ball.velocityY = (dy / distance) * power;
+    ball.withPlayer = null;
+    ballWithPlayer = null;
+    player.hasBall = false;
+    player.element.classList.remove('has-ball');
+    ball.isMoving = true;
+    
+    addEvent(`${player.name} shoots!`, 'pass');
+    updateBall();
 }
 
 // AI Dribble
 function aiDribble(player) {
-    if (!player.hasBall) return;
-    
-    // Move toward goal with some randomness
+    // Move toward opponent's goal
     let moveX, moveY;
-    
     if (player.team === 'team-b') {
-        moveX = player.x - 1.5 - Math.random() * 0.5; // Move left toward goal
+        moveX = player.x - 1.5;
         moveY = player.y + (Math.random() - 0.5) * 3;
     } else {
-        moveX = player.x + 1.5 + Math.random() * 0.5; // Move right toward goal
+        moveX = player.x + 1.5;
         moveY = player.y + (Math.random() - 0.5) * 3;
-    }
-    
-    // Avoid opponents
-    const nearestOpponent = findNearestOpponent(player);
-    if (nearestOpponent) {
-        const opponentDistance = Math.sqrt(
-            Math.pow(nearestOpponent.x - player.x, 2) + 
-            Math.pow(nearestOpponent.y - player.y, 2)
-        );
-        
-        if (opponentDistance < 15) {
-            // Evade opponent
-            const evadeX = (player.x - nearestOpponent.x) / opponentDistance;
-            const evadeY = (player.y - nearestOpponent.y) / opponentDistance;
-            
-            moveX += evadeX * 2;
-            moveY += evadeY * 2;
-        }
     }
     
     // Keep in bounds
     moveX = Math.max(5, Math.min(95, moveX));
     moveY = Math.max(10, Math.min(90, moveY));
     
-    // Update position
     player.x = moveX;
     player.y = moveY;
     player.element.style.left = `${moveX}%`;
@@ -578,414 +634,107 @@ function aiDribble(player) {
     setTimeout(() => {
         player.element.classList.remove('running');
     }, 200);
-    
-    player.aiState = 'dribbling';
 }
 
-// AI Move toward goal
-function aiMoveTowardGoal(player) {
-    if (!player.hasBall) return;
+// Move to support position
+function moveToSupportPosition(player) {
+    if (!ballWithPlayer) return;
     
-    let targetX, targetY;
-    if (player.team === 'team-b') {
-        targetX = Math.max(10, player.x - 1.2); // Move left
-        targetY = 50 + (Math.random() - 0.5) * 10;
-    } else {
-        targetX = Math.min(90, player.x + 1.2); // Move right
-        targetY = 50 + (Math.random() - 0.5) * 10;
-    }
-    
-    // Smooth movement
-    const dx = targetX - player.x;
-    const dy = targetY - player.y;
+    const ballHolder = ballWithPlayer;
+    const dx = ballHolder.x - player.x;
+    const dy = ballHolder.y - player.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
     
-    if (distance > 0.5) {
-        player.x += (dx / distance) * 1.0;
-        player.y += (dy / distance) * 1.0;
+    if (distance > 15) {
+        // Move toward ball holder
+        const moveX = player.x + (dx / distance) * 0.8;
+        const moveY = player.y + (dy / distance) * 0.8;
         
-        // Keep in bounds
-        player.x = Math.max(5, Math.min(95, player.x));
-        player.y = Math.max(10, Math.min(90, player.y));
-        
+        player.x = Math.max(5, Math.min(95, moveX));
+        player.y = Math.max(10, Math.min(90, moveY));
         player.element.style.left = `${player.x}%`;
         player.element.style.top = `${player.y}%`;
-        
-        // Move ball with player
-        moveBallWithPlayer();
-        
-        // Add running animation
-        player.element.classList.add('running');
-        setTimeout(() => {
-            player.element.classList.remove('running');
-        }, 200);
-    }
-    
-    player.aiState = 'attacking';
-}
-
-// AI Support teammate
-function aiSupportTeammate(player) {
-    if (ballWithPlayer && ballWithPlayer.team === player.team) {
-        // Move to support position
-        let targetX, targetY;
-        
-        // Find good support position
-        if (player.position === "Goalkeeper") {
-            targetX = player.originalPosition.x;
-            targetY = player.originalPosition.y;
-        } else if (player.position === "Defender") {
-            targetX = ballWithPlayer.x - 15;
-            targetY = ballWithPlayer.y + (Math.random() - 0.5) * 20;
-        } else if (player.position === "Midfielder") {
-            targetX = ballWithPlayer.x - 5;
-            targetY = ballWithPlayer.y + (Math.random() - 0.5) * 15;
-        } else { // Forward
-            targetX = ballWithPlayer.x + 10;
-            targetY = ballWithPlayer.y + (Math.random() - 0.5) * 10;
-        }
-        
-        // Adjust for team side
-        if (player.team === 'team-a') {
-            targetX = Math.min(targetX, 70);
-        } else {
-            targetX = Math.max(targetX, 30);
-        }
-        
-        // Move toward target
-        movePlayerToPosition(player, targetX, targetY, 0.8);
-        player.aiState = 'supporting';
     }
 }
 
-// AI Defend
-function aiDefend(player) {
-    if (!ballWithPlayer || ballWithPlayer.team === player.team) return;
+// Move to defensive position
+function moveToDefensivePosition(player) {
+    if (!ballWithPlayer) return;
     
     const opponent = ballWithPlayer;
-    
-    // Calculate defensive position
-    let targetX, targetY;
     const goalX = player.team === 'team-a' ? 10 : 90;
-    const goalY = 50;
     
     // Position between opponent and goal
-    targetX = opponent.x + (goalX - opponent.x) * 0.3;
-    targetY = opponent.y + (goalY - opponent.y) * 0.3;
+    const targetX = opponent.x + (goalX - opponent.x) * 0.3;
+    const targetY = opponent.y;
     
-    // Adjust based on position
-    if (player.position === "Goalkeeper") {
-        targetX = player.originalPosition.x;
-        targetY = player.originalPosition.y;
-    } else if (player.position === "Defender") {
-        // Stay closer to goal
-        targetX = opponent.x + (goalX - opponent.x) * 0.5;
-    }
-    
-    // Move toward defensive position
-    movePlayerToPosition(player, targetX, targetY, 0.9);
-    player.aiState = 'defending';
-}
-
-// AI Go to ball
-function aiGoToBall(player) {
-    if (ballWithPlayer || !ball.isMoving) return;
-    
-    // Move toward ball
-    movePlayerToPosition(player, ball.x, ball.y, 1.0);
-    player.aiState = 'chasing';
-}
-
-// AI Return to position
-function aiReturnToPosition(player) {
-    const originalX = player.originalPosition.x;
-    const originalY = player.originalPosition.y;
-    const distance = Math.sqrt(
-        Math.pow(player.x - originalX, 2) + 
-        Math.pow(player.y - originalY, 2)
-    );
-    
-    if (distance > 2) {
-        movePlayerToPosition(player, originalX, originalY, 0.5);
-    }
-    player.aiState = 'positioning';
-}
-
-// Helper: Move player to position
-function movePlayerToPosition(player, targetX, targetY, speed = 0.8) {
     const dx = targetX - player.x;
     const dy = targetY - player.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
     
-    if (distance > 0.5) {
-        player.x += (dx / distance) * speed;
-        player.y += (dy / distance) * speed;
+    if (distance > 5) {
+        const moveX = player.x + (dx / distance) * 0.6;
+        const moveY = player.y + (dy / distance) * 0.6;
         
-        // Keep in bounds
-        player.x = Math.max(5, Math.min(95, player.x));
-        player.y = Math.max(10, Math.min(90, player.y));
-        
+        player.x = Math.max(5, Math.min(95, moveX));
+        player.y = Math.max(10, Math.min(90, moveY));
         player.element.style.left = `${player.x}%`;
         player.element.style.top = `${player.y}%`;
-        
-        // Add running animation if moving fast enough
-        if (speed > 0.6) {
-            player.element.classList.add('running');
-            setTimeout(() => {
-                player.element.classList.remove('running');
-            }, 200);
-        }
     }
 }
 
-// Helper: Find nearest opponent
-function findNearestOpponent(player) {
-    let nearest = null;
-    let minDistance = Infinity;
-    
-    playersOnField.forEach(opponent => {
-        if (opponent.team !== player.team) {
-            const distance = Math.sqrt(
-                Math.pow(opponent.x - player.x, 2) + 
-                Math.pow(opponent.y - player.y, 2)
-            );
-            if (distance < minDistance) {
-                minDistance = distance;
-                nearest = opponent;
-            }
-        }
-    });
-    
-    return nearest;
-}
-
-// Update user team defensive positions
-function updateDefensivePosition(player) {
-    if (player.hasBall || player === selectedPlayer) return;
-    
-    if (ballWithPlayer && ballWithPlayer.team === 'team-b') {
-        // Opponent has ball - defend
-        const opponent = ballWithPlayer;
-        const goalX = player.team === 'team-a' ? 10 : 90;
-        
-        // Calculate defensive position
-        let targetX = opponent.x + (goalX - opponent.x) * 0.4;
-        let targetY = opponent.y + (50 - opponent.y) * 0.4;
-        
-        // Adjust based on original position
-        const originalX = player.originalPosition.x;
-        const dxToOriginal = Math.abs(originalX - targetX);
-        
-        if (dxToOriginal > 20) {
-            // Too far from original position, move back
-            targetX = originalX + (targetX - originalX) * 0.7;
-        }
-        
-        // Move toward defensive position
-        const dx = targetX - player.x;
-        const dy = targetY - player.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        if (distance > 2) {
-            player.x += (dx / distance) * 0.5;
-            player.y += (dy / distance) * 0.5;
-            
-            // Keep in bounds
-            player.x = Math.max(5, Math.min(95, player.x));
-            player.y = Math.max(10, Math.min(90, player.y));
-            
-            player.element.style.left = `${player.x}%`;
-            player.element.style.top = `${player.y}%`;
-        }
-    } else if (!ball.isMoving) {
-        // Return to original position
-        const originalX = player.originalPosition.x;
-        const originalY = player.originalPosition.y;
-        const dx = originalX - player.x;
-        const dy = originalY - player.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        if (distance > 1) {
-            player.x += (dx / distance) * 0.3;
-            player.y += (dy / distance) * 0.3;
-            
-            player.element.style.left = `${player.x}%`;
-            player.element.style.top = `${player.y}%`;
-        }
-    }
-}
-
-// Update player AI states
-function updatePlayerAIStates() {
-    // This function sets the AI state for all players
-    playersOnField.forEach(player => {
-        if (player.team === 'team-b') {
-            // AI team
-            if (player.hasBall) {
-                player.aiState = 'attacking';
-            } else if (ballWithPlayer) {
-                if (ballWithPlayer.team === 'team-b') {
-                    player.aiState = 'supporting';
-                } else {
-                    player.aiState = 'defending';
-                }
-            } else {
-                player.aiState = ball.isMoving ? 'chasing' : 'positioning';
-            }
-        }
-    });
-}
-
-// Pass the ball (User)
-function passBall() {
-    if (!selectedPlayer || selectedPlayer !== ballWithPlayer) {
-        addEvent("You don't have the ball!");
-        return;
-    }
-
-    const teammates = playersOnField.filter(p => 
-        p.team === selectedPlayer.team && 
-        p !== selectedPlayer
-    );
-
-    if (teammates.length > 0) {
-        const possibleTargets = teammates.filter(teammate => {
-            const dx = teammate.x - selectedPlayer.x;
-            const dy = teammate.y - selectedPlayer.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            return distance < 40 && 
-                   Math.random() > 0.2 &&
-                   !teammate.hasBall;
-        });
-
-        if (possibleTargets.length > 0) {
-            const target = possibleTargets.reduce((best, current) => {
-                const bestDistance = Math.sqrt(
-                    Math.pow(best.x - selectedPlayer.x, 2) + 
-                    Math.pow(best.y - selectedPlayer.y, 2)
-                );
-                const currentDistance = Math.sqrt(
-                    Math.pow(current.x - selectedPlayer.x, 2) + 
-                    Math.pow(current.y - selectedPlayer.y, 2)
-                );
-                
-                const bestScore = (best.skill / 100) * (40 / (bestDistance + 1));
-                const currentScore = (current.skill / 100) * (40 / (currentDistance + 1));
-                
-                return currentScore > bestScore ? current : best;
-            });
-
-            const dx = target.x - ball.x;
-            const dy = target.y - ball.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            const baseSpeed = selectedPlayer.skill / 25;
-            const speed = Math.min(6, Math.max(2, baseSpeed * (distance / 20)));
-            
-            const accuracy = selectedPlayer.skill / 100;
-            const randomX = (Math.random() - 0.5) * 3 * (1 - accuracy);
-            const randomY = (Math.random() - 0.5) * 3 * (1 - accuracy);
-
-            ball.velocityX = (dx / distance) * speed + randomX;
-            ball.velocityY = (dy / distance) * speed + randomY;
-            ball.withPlayer = null;
-            ballWithPlayer = null;
-            selectedPlayer.hasBall = false;
-            selectedPlayer.element.classList.remove('has-ball');
-            ball.isMoving = true;
-
-            addEvent(`${selectedPlayer.name} passes to ${target.name}`, 'pass');
-            updateBallPosition();
-            updatePlayerAIStates();
-        } else {
-            addEvent("No open teammates to pass to!");
-        }
-    } else {
-        addEvent("No teammates found!");
-    }
-}
-
-// Shoot the ball (User)
-function shootBall() {
-    if (!selectedPlayer || selectedPlayer !== ballWithPlayer) {
-        addEvent("You don't have the ball!");
-        return;
-    }
-
-    let goalX, goalY;
-    if (selectedPlayer.team === 'team-a') {
-        goalX = 98;
-        goalY = 50 + (Math.random() - 0.5) * 10;
-    } else {
-        goalX = 2;
-        goalY = 50 + (Math.random() - 0.5) * 10;
-    }
-    
-    const dx = goalX - ball.x;
-    const dy = goalY - ball.y;
+// Move toward ball
+function moveTowardBall(player) {
+    const dx = ball.x - player.x;
+    const dy = ball.y - player.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
     
-    const basePower = selectedPlayer.skill / 15;
-    const power = Math.min(10, Math.max(3, basePower + Math.random() * 3));
+    if (distance > 8) {
+        const moveX = player.x + (dx / distance) * 1.0;
+        const moveY = player.y + (dy / distance) * 1.0;
+        
+        player.x = Math.max(5, Math.min(95, moveX));
+        player.y = Math.max(10, Math.min(90, moveY));
+        player.element.style.left = `${player.x}%`;
+        player.element.style.top = `${player.y}%`;
+    }
+}
+
+// Return to position
+function returnToPosition(player) {
+    const dx = player.originalPosition.x - player.x;
+    const dy = player.originalPosition.y - player.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
     
-    const accuracy = selectedPlayer.skill / 100;
-    const randomX = (Math.random() - 0.5) * 5 * (1 - accuracy);
-    const randomY = (Math.random() - 0.5) * 5 * (1 - accuracy);
-
-    ball.velocityX = (dx / distance) * power + randomX;
-    ball.velocityY = (dy / distance) * power + randomY;
-    ball.withPlayer = null;
-    ballWithPlayer = null;
-    selectedPlayer.hasBall = false;
-    selectedPlayer.element.classList.remove('has-ball');
-    ball.isMoving = true;
-
-    addEvent(`${selectedPlayer.name} shoots!`, 'pass');
-    updateBallPosition();
-    updatePlayerAIStates();
+    if (distance > 2) {
+        const moveX = player.x + (dx / distance) * 0.4;
+        const moveY = player.y + (dy / distance) * 0.4;
+        
+        player.x = Math.max(5, Math.min(95, moveX));
+        player.y = Math.max(10, Math.min(90, moveY));
+        player.element.style.left = `${player.x}%`;
+        player.element.style.top = `${player.y}%`;
+    }
 }
 
 // Check for goals
 function checkForGoal() {
     if (!ball || !ball.isMoving) return;
-
-    const inLeftGoal = ball.x <= 5 && ball.y >= 40 && ball.y <= 60;
-    const inRightGoal = ball.x >= 95 && ball.y >= 40 && ball.y <= 60;
-
-    if (inLeftGoal && Math.abs(ball.velocityX) > 0.5) {
+    
+    // Left goal (Team B scores)
+    if (ball.x <= 5 && ball.y >= 40 && ball.y <= 60 && Math.abs(ball.velocityX) > 0.5) {
         teamBScore++;
         updateScoreboard();
         addEvent("GOAL! Team B scores!", 'goal');
-        highlightGoal('left');
         resetBall();
-        return;
     }
     
-    if (inRightGoal && Math.abs(ball.velocityX) > 0.5) {
+    // Right goal (Team A scores)
+    if (ball.x >= 95 && ball.y >= 40 && ball.y <= 60 && Math.abs(ball.velocityX) > 0.5) {
         teamAScore++;
         updateScoreboard();
         addEvent("GOAL! Team A scores!", 'goal');
-        highlightGoal('right');
         resetBall();
-        return;
-    }
-}
-
-// Highlight goal animation
-function highlightGoal(side) {
-    const goalElement = side === 'left' ? 
-        document.querySelector('.left-goal') : 
-        document.querySelector('.right-goal');
-    
-    if (goalElement) {
-        goalElement.style.backgroundColor = 'rgba(16, 185, 129, 0.7)';
-        goalElement.style.boxShadow = '0 0 30px rgba(16, 185, 129, 0.8)';
-        
-        setTimeout(() => {
-            goalElement.style.backgroundColor = '';
-            goalElement.style.boxShadow = '';
-        }, 1000);
     }
 }
 
@@ -995,13 +744,13 @@ function resetBall() {
         cancelAnimationFrame(ballAnimationFrame);
         ballAnimationFrame = null;
     }
-
+    
     if (ballWithPlayer) {
         ballWithPlayer.hasBall = false;
         ballWithPlayer.element.classList.remove('has-ball');
         ballWithPlayer = null;
     }
-
+    
     ball.x = 50;
     ball.y = 50;
     ball.velocityX = 0;
@@ -1011,31 +760,32 @@ function resetBall() {
     ball.element.style.left = '50%';
     ball.element.style.top = '50%';
     ball.element.classList.remove('moving');
-
+    
     updateBallPossession();
-
+    
     // Give ball to random player after delay
     setTimeout(() => {
-        // Determine which team gets the ball based on who scored
-        const scoringTeam = teamAScore > teamBScore ? 'team-b' : 'team-a';
-        const playersToChoose = playersOnField.filter(p => p.team === scoringTeam);
+        const playersNearCenter = playersOnField.filter(p => 
+            Math.abs(p.x - 50) < 20 && Math.abs(p.y - 50) < 20
+        );
         
-        if (playersToChoose.length > 0) {
-            const randomPlayer = playersToChoose[Math.floor(Math.random() * playersToChoose.length)];
+        if (playersNearCenter.length > 0) {
+            const randomPlayer = playersNearCenter[Math.floor(Math.random() * playersNearCenter.length)];
             giveBallToPlayer(randomPlayer);
         }
-    }, 1500);
+    }, 1000);
 }
 
 // Select a player
 function selectPlayer(player) {
     if (player.team !== 'team-a') return;
-
+    
     // Deselect previous player
     if (selectedPlayer) {
         selectedPlayer.element.classList.remove('selected');
+        selectedPlayer.element.classList.remove('running');
     }
-
+    
     // Select new player
     selectedPlayer = player;
     player.element.classList.add('selected');
@@ -1048,60 +798,12 @@ function selectPlayer(player) {
 function selectNextPlayer() {
     const teamAPlayers = playersOnField.filter(p => p.team === 'team-a');
     if (teamAPlayers.length === 0) return;
-
+    
     let currentIndex = selectedPlayer ? 
         teamAPlayers.findIndex(p => p.id === selectedPlayer.id) : -1;
     
     const nextIndex = (currentIndex + 1) % teamAPlayers.length;
     selectPlayer(teamAPlayers[nextIndex]);
-}
-
-// Move selected player
-function movePlayer(direction) {
-    if (!selectedPlayer || !gameRunning) return;
-
-    const speed = isSprinting ? 2.0 : 1.2;
-    let newX = selectedPlayer.x;
-    let newY = selectedPlayer.y;
-
-    switch(direction) {
-        case 'up': newY -= speed; break;
-        case 'down': newY += speed; break;
-        case 'left': newX -= speed; break;
-        case 'right': newX += speed; break;
-    }
-
-    // Keep within bounds
-    if (selectedPlayer.team === 'team-a') {
-        // Blue team - avoid left goal area
-        newX = Math.max(10, Math.min(95, newX));
-    } else {
-        // Red team - avoid right goal area
-        newX = Math.max(5, Math.min(90, newX));
-    }
-    newY = Math.max(10, Math.min(90, newY));
-
-    // Update player position
-    selectedPlayer.x = newX;
-    selectedPlayer.y = newY;
-    selectedPlayer.element.style.left = `${newX}%`;
-    selectedPlayer.element.style.top = `${newY}%`;
-
-    // Start running animation
-    selectedPlayer.element.classList.add('running');
-    setTimeout(() => {
-        if (selectedPlayer) selectedPlayer.element.classList.remove('running');
-    }, 200);
-
-    // If player has ball, move ball with player
-    if (selectedPlayer.hasBall) {
-        moveBallWithPlayer();
-    }
-
-    // Check ball proximity if player doesn't have ball
-    if (!selectedPlayer.hasBall && !ballWithPlayer) {
-        checkBallContact();
-    }
 }
 
 // Toggle sprint mode
@@ -1112,10 +814,11 @@ function toggleSprint() {
     if (isSprinting) {
         sprintBtn.style.background = 'linear-gradient(135deg, #d97706, #b45309)';
         sprintBtn.style.transform = 'scale(1.05)';
-        addEvent("Sprinting!");
+        addEvent("Sprinting ON!");
     } else {
         sprintBtn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
         sprintBtn.style.transform = 'scale(1)';
+        addEvent("Sprinting OFF!");
     }
 }
 
@@ -1123,12 +826,6 @@ function toggleSprint() {
 function updateScoreboard() {
     document.getElementById('team-a-score').textContent = teamAScore;
     document.getElementById('team-b-score').textContent = teamBScore;
-    
-    const scoreElement = document.querySelector('.score');
-    scoreElement.style.transform = 'scale(1.2)';
-    setTimeout(() => {
-        scoreElement.style.transform = 'scale(1)';
-    }, 300);
 }
 
 function updateBallPossession() {
@@ -1144,15 +841,15 @@ function updateBallPossession() {
 
 function updatePossessionStats(team) {
     if (team === 'teamA') {
-        possession.teamA = Math.min(100, possession.teamA + 1.5);
-        possession.teamB = Math.max(0, possession.teamB - 1.5);
+        possession.teamA = Math.min(100, possession.teamA + 1);
+        possession.teamB = Math.max(0, possession.teamB - 1);
     } else {
-        possession.teamB = Math.min(100, possession.teamB + 1.5);
-        possession.teamA = Math.max(0, possession.teamA - 1.5);
+        possession.teamB = Math.min(100, possession.teamB + 1);
+        possession.teamA = Math.max(0, possession.teamA - 1);
     }
     
     document.getElementById('possession').textContent = 
-        `${Math.round(possession.teamA)}% - ${Math.round(possession.teamB)}%`;
+        `${possession.teamA}% - ${possession.teamB}%`;
 }
 
 function updateMatchTime() {
@@ -1204,8 +901,6 @@ function startGame() {
     }, 1000);
     
     addEvent("Game started!");
-    
-    // Start AI updates
     startAIUpdates();
     
     if (!selectedPlayer) {
@@ -1253,6 +948,8 @@ function resetGame() {
     isSprinting = false;
     selectedPlayer = null;
     ballWithPlayer = null;
+    keysPressed = {};
+    shiftPressed = false;
     
     createPlayers();
     createBall();
@@ -1261,8 +958,9 @@ function resetGame() {
     document.getElementById('game-status').textContent = 'Ready';
     document.getElementById('game-status').style.color = '#fff';
     document.getElementById('selected-player').textContent = 'None';
-    document.getElementById('sprint-btn').style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
-    document.getElementById('sprint-btn').style.transform = 'scale(1)';
+    const sprintBtn = document.getElementById('sprint-btn');
+    sprintBtn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+    sprintBtn.style.transform = 'scale(1)';
     
     addEvent("Game reset");
 }
@@ -1298,16 +996,27 @@ function endGame() {
 
 // Setup event listeners
 function setupEventListeners() {
-    document.getElementById('move-up').addEventListener('click', () => movePlayer('up'));
-    document.getElementById('move-down').addEventListener('click', () => movePlayer('down'));
-    document.getElementById('move-left').addEventListener('click', () => movePlayer('left'));
-    document.getElementById('move-right').addEventListener('click', () => movePlayer('right'));
+    // Movement buttons
+    document.getElementById('move-up').addEventListener('click', () => {
+        if (selectedPlayer) moveSelectedPlayer(0, -2);
+    });
+    document.getElementById('move-down').addEventListener('click', () => {
+        if (selectedPlayer) moveSelectedPlayer(0, 2);
+    });
+    document.getElementById('move-left').addEventListener('click', () => {
+        if (selectedPlayer) moveSelectedPlayer(-2, 0);
+    });
+    document.getElementById('move-right').addEventListener('click', () => {
+        if (selectedPlayer) moveSelectedPlayer(2, 0);
+    });
 
+    // Action buttons
     document.getElementById('pass-btn').addEventListener('click', passBall);
     document.getElementById('shoot-btn').addEventListener('click', shootBall);
     document.getElementById('sprint-btn').addEventListener('click', toggleSprint);
     document.getElementById('select-btn').addEventListener('click', selectNextPlayer);
 
+    // Game control buttons
     document.getElementById('start-btn').addEventListener('click', startGame);
     document.getElementById('pause-btn').addEventListener('click', pauseGame);
     document.getElementById('reset-btn').addEventListener('click', resetGame);
@@ -1317,43 +1026,33 @@ function setupEventListeners() {
 function setupKeyboardControls() {
     document.addEventListener('keydown', (e) => {
         if (!gameRunning && e.key !== ' ') return;
-
+        
+        // Store key state
+        keysPressed[e.key] = true;
+        
+        // Check for Shift key
+        if (e.key === 'Shift') {
+            shiftPressed = true;
+            if (!isSprinting) {
+                toggleSprint();
+            }
+        }
+        
         switch(e.key.toLowerCase()) {
-            case 'w':
-            case 'arrowup':
-                e.preventDefault();
-                movePlayer('up');
-                break;
-            case 's':
-            case 'arrowdown':
-                e.preventDefault();
-                movePlayer('down');
-                break;
-            case 'a':
-            case 'arrowleft':
-                e.preventDefault();
-                movePlayer('left');
-                break;
-            case 'd':
-            case 'arrowright':
-                e.preventDefault();
-                movePlayer('right');
-                break;
             case ' ':
                 if (!gameRunning) startGame();
                 break;
             case 'p':
-                e.preventDefault();
-                passBall();
+                if (e.key === 'p') {
+                    e.preventDefault();
+                    passBall();
+                }
                 break;
             case 's':
                 if (e.key === 's') {
                     e.preventDefault();
                     shootBall();
                 }
-                break;
-            case 'shift':
-                toggleSprint();
                 break;
             case 'c':
                 selectNextPlayer();
@@ -1362,16 +1061,22 @@ function setupKeyboardControls() {
     });
 
     document.addEventListener('keyup', (e) => {
-        if (['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-            if (selectedPlayer) {
-                selectedPlayer.element.classList.remove('running');
+        // Remove key state
+        keysPressed[e.key] = false;
+        
+        // Handle Shift key release
+        if (e.key === 'Shift') {
+            shiftPressed = false;
+            if (isSprinting) {
+                toggleSprint();
             }
         }
         
-        if (e.key === 'Shift') {
-            isSprinting = false;
-            document.getElementById('sprint-btn').style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
-            document.getElementById('sprint-btn').style.transform = 'scale(1)';
+        // Remove running animation when movement keys are released
+        if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(e.key.toLowerCase())) {
+            if (selectedPlayer) {
+                selectedPlayer.element.classList.remove('running');
+            }
         }
     });
 }
