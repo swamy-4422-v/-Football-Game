@@ -225,9 +225,7 @@ function createPlayer(data, team, position) {
         isMoving: false,
         hasBall: false,
         targetX: position.x,
-        targetY: position.y,
-        passAccuracy: data.skill * 0.8 + Math.random() * 20,
-        shotAccuracy: data.attack * 0.7 + Math.random() * 25
+        targetY: position.y
     };
 
     playersOnField.push(player);
@@ -271,7 +269,11 @@ function createBall() {
         isMoving: false
     };
 
-    updateBall();
+    // Give ball to a random player initially
+    setTimeout(() => {
+        const randomPlayer = playersOnField[Math.floor(Math.random() * playersOnField.length)];
+        giveBallToPlayer(randomPlayer);
+    }, 500);
 }
 
 // Update ball position
@@ -333,12 +335,9 @@ function updateBall() {
     }
 }
 
-// Check if ball contacts a player
+// Check if ball contacts a player - SIMPLIFIED VERSION
 function checkBallContact() {
     if (!ball || ball.withPlayer || !ball.isMoving) return;
-    
-    let closestPlayer = null;
-    let closestDistance = 100; // Max distance to intercept
     
     playersOnField.forEach(player => {
         if (player.hasBall) return;
@@ -348,18 +347,14 @@ function checkBallContact() {
         const distance = Math.sqrt(dx * dx + dy * dy);
         
         // Player can intercept ball if close enough
-        if (distance < 10 && distance < closestDistance) {
-            closestDistance = distance;
-            closestPlayer = player;
+        if (distance < 10) {
+            giveBallToPlayer(player);
+            return;
         }
     });
-    
-    if (closestPlayer) {
-        giveBallToPlayer(closestPlayer);
-    }
 }
 
-// Give ball to player
+// Give ball to player - SIMPLIFIED VERSION
 function giveBallToPlayer(player) {
     if (ball.withPlayer === player) return;
     
@@ -398,6 +393,13 @@ function giveBallToPlayer(player) {
     updatePossessionStats(player.team === 'team-a' ? 'teamA' : 'teamB');
     
     addEvent(`${player.name} gets the ball!`, 'pass');
+    
+    // If AI player gets the ball, make AI decision after delay
+    if (player.team === 'team-b' && gameRunning) {
+        setTimeout(() => {
+            makeAIDecision(player);
+        }, 500);
+    }
 }
 
 // Move ball with player
@@ -410,75 +412,46 @@ function moveBallWithPlayer() {
     ball.element.style.top = `${ball.y}%`;
 }
 
-// Pass the ball - IMPROVED VERSION
+// Pass the ball - SIMPLIFIED AND WORKING VERSION
 function passBall() {
     if (!selectedPlayer || selectedPlayer !== ball.withPlayer) {
         addEvent("You don't have the ball!");
         return;
     }
     
-    // Find teammates
+    // Find all teammates
     const teammates = playersOnField.filter(p => 
         p.team === selectedPlayer.team && 
         p !== selectedPlayer
     );
     
     if (teammates.length > 0) {
-        // Find best teammate to pass to (closest and with good position)
-        let bestTeammate = null;
-        let bestScore = -Infinity;
+        // Find the closest teammate
+        let closestTeammate = null;
+        let closestDistance = Infinity;
         
         teammates.forEach(teammate => {
-            // Calculate distance
             const dx = teammate.x - selectedPlayer.x;
             const dy = teammate.y - selectedPlayer.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
-            // Only consider teammates within reasonable passing distance
-            if (distance < 40) {
-                // Check if teammate is open (not too close to opponents)
-                let isOpen = true;
-                playersOnField.forEach(opponent => {
-                    if (opponent.team !== selectedPlayer.team) {
-                        const oppDx = opponent.x - teammate.x;
-                        const oppDy = opponent.y - teammate.y;
-                        const oppDistance = Math.sqrt(oppDx * oppDx + oppDy * oppDy);
-                        
-                        if (oppDistance < 15) {
-                            isOpen = false;
-                        }
-                    }
-                });
-                
-                if (isOpen) {
-                    // Calculate score based on position, distance, and skill
-                    const positionScore = (100 - distance) / 10; // Closer is better
-                    const skillScore = teammate.skill / 20;
-                    const attackScore = teammate.attack / 30; // Forwards get higher score
-                    const totalScore = positionScore + skillScore + attackScore;
-                    
-                    if (totalScore > bestScore) {
-                        bestScore = totalScore;
-                        bestTeammate = teammate;
-                    }
-                }
+            // Only consider teammates within passing range
+            if (distance < 40 && distance < closestDistance) {
+                closestDistance = distance;
+                closestTeammate = teammate;
             }
         });
         
-        if (bestTeammate) {
-            // Calculate pass direction with accuracy based on player skill
-            const targetX = bestTeammate.x + (Math.random() - 0.5) * 5 * (1 - (selectedPlayer.skill / 100));
-            const targetY = bestTeammate.y + (Math.random() - 0.5) * 5 * (1 - (selectedPlayer.skill / 100));
-            
-            const dx = targetX - ball.x;
-            const dy = targetY - ball.y;
+        if (closestTeammate) {
+            // Calculate direction to teammate
+            const dx = closestTeammate.x - ball.x;
+            const dy = closestTeammate.y - ball.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
-            // Pass speed based on player skill and distance
-            const baseSpeed = selectedPlayer.skill / 25;
-            const speed = Math.min(5, Math.max(2, baseSpeed * (distance / 20)));
+            // Pass speed based on player skill
+            const speed = Math.min(5, selectedPlayer.skill / 20);
             
-            // Kick the ball
+            // Kick the ball toward teammate
             ball.velocityX = (dx / distance) * speed;
             ball.velocityY = (dy / distance) * speed;
             ball.withPlayer = null;
@@ -487,51 +460,33 @@ function passBall() {
             selectedPlayer.element.classList.remove('has-ball');
             ball.isMoving = true;
             
-            addEvent(`${selectedPlayer.name} passes to ${bestTeammate.name}`, 'pass');
+            addEvent(`${selectedPlayer.name} passes to ${closestTeammate.name}`, 'pass');
             updateBall();
         } else {
-            // If no open teammates, try a different pass
-            tryRandomPass(selectedPlayer);
+            // No teammate in range, try a long pass
+            const randomTeammate = teammates[Math.floor(Math.random() * teammates.length)];
+            const dx = randomTeammate.x - ball.x;
+            const dy = randomTeammate.y - ball.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const speed = 4;
+            
+            ball.velocityX = (dx / distance) * speed;
+            ball.velocityY = (dy / distance) * speed;
+            ball.withPlayer = null;
+            ballWithPlayer = null;
+            selectedPlayer.hasBall = false;
+            selectedPlayer.element.classList.remove('has-ball');
+            ball.isMoving = true;
+            
+            addEvent(`${selectedPlayer.name} attempts a long pass`, 'pass');
+            updateBall();
         }
     } else {
         addEvent("No teammates found!");
     }
 }
 
-// Try a random pass
-function tryRandomPass(player) {
-    const teammates = playersOnField.filter(p => 
-        p.team === player.team && 
-        p !== player
-    );
-    
-    if (teammates.length > 0) {
-        // Just pick a random teammate
-        const target = teammates[Math.floor(Math.random() * teammates.length)];
-        
-        const dx = target.x - ball.x;
-        const dy = target.y - ball.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const speed = Math.min(4, player.skill / 25);
-        
-        // Add more randomness for difficult pass
-        const randomX = (Math.random() - 0.5) * 3;
-        const randomY = (Math.random() - 0.5) * 3;
-        
-        ball.velocityX = (dx / distance) * speed + randomX;
-        ball.velocityY = (dy / distance) * speed + randomY;
-        ball.withPlayer = null;
-        ballWithPlayer = null;
-        player.hasBall = false;
-        player.element.classList.remove('has-ball');
-        ball.isMoving = true;
-        
-        addEvent(`${player.name} attempts a difficult pass`, 'pass');
-        updateBall();
-    }
-}
-
-// Shoot the ball - IMPROVED VERSION
+// Shoot the ball - SIMPLIFIED AND WORKING VERSION
 function shootBall() {
     if (!selectedPlayer || selectedPlayer !== ball.withPlayer) {
         addEvent("You don't have the ball!");
@@ -548,26 +503,17 @@ function shootBall() {
         goalY = 50;
     }
     
-    // Calculate shot direction
+    // Calculate direction to goal
     const dx = goalX - ball.x;
     const dy = goalY - ball.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
     
-    // Shot power based on player skill and distance to goal
-    const distanceToGoal = selectedPlayer.team === 'team-a' ? 100 - selectedPlayer.x : selectedPlayer.x;
-    const powerMultiplier = 1 + (30 / (distanceToGoal + 1)); // More power when closer
+    // Shoot power based on player skill
+    const power = Math.min(8, selectedPlayer.skill / 15);
     
-    const basePower = selectedPlayer.skill / 15;
-    const power = Math.min(10, Math.max(4, basePower * powerMultiplier));
-    
-    // Accuracy based on player skill and position
-    const accuracy = selectedPlayer.shotAccuracy / 100;
-    const randomX = (Math.random() - 0.5) * 8 * (1 - accuracy);
-    const randomY = (Math.random() - 0.5) * 8 * (1 - accuracy);
-    
-    // Kick the ball
-    ball.velocityX = (dx / distance) * power + randomX;
-    ball.velocityY = (dy / distance) * power + randomY;
+    // Kick the ball toward goal
+    ball.velocityX = (dx / distance) * power;
+    ball.velocityY = (dy / distance) * power;
     ball.withPlayer = null;
     ballWithPlayer = null;
     selectedPlayer.hasBall = false;
@@ -578,59 +524,26 @@ function shootBall() {
     updateBall();
 }
 
-// Update AI player
-function updateAIPlayer(player) {
-    if (!player) return;
+// AI Decision making
+function makeAIDecision(player) {
+    if (!gameRunning || !ballWithPlayer || ballWithPlayer !== player) return;
     
-    if (player.hasBall) {
-        handleAIWithBall(player);
-    } else {
-        handleAIWithoutBall(player);
-    }
-}
-
-// Handle AI player with ball
-function handleAIWithBall(player) {
-    if (!ballWithPlayer || ballWithPlayer !== player) return;
-    
-    // Make AI decision
     const decision = Math.random();
     
-    if (decision < 0.4) {
+    if (decision < 0.5) {
         // Pass to teammate
         aiPassBall(player);
     } else if (decision < 0.8) {
-        // Shoot if in good position
+        // Shoot if close to goal
         const distanceToGoal = player.team === 'team-b' ? 100 - player.x : player.x;
-        const isInGoodPosition = distanceToGoal < 35 && Math.abs(player.y - 50) < 30;
-        
-        if (isInGoodPosition && Math.random() < 0.7) {
+        if (distanceToGoal < 35) {
             aiShootBall(player);
         } else {
             aiDribble(player);
         }
     } else {
-        // Dribble toward goal
+        // Dribble
         aiDribble(player);
-    }
-}
-
-// Handle AI player without ball
-function handleAIWithoutBall(player) {
-    if (ballWithPlayer) {
-        if (ballWithPlayer.team === player.team) {
-            // Support teammate with ball
-            moveToSupportPosition(player);
-        } else {
-            // Defend against opponent with ball
-            moveToDefensivePosition(player);
-        }
-    } else if (ball.isMoving) {
-        // Chase loose ball
-        moveTowardBall(player);
-    } else {
-        // Return to position
-        returnToPosition(player);
     }
 }
 
@@ -643,35 +556,24 @@ function aiPassBall(player) {
     );
     
     if (teammates.length > 0) {
-        // Find best teammate to pass to
-        let bestTeammate = null;
-        let bestScore = -Infinity;
+        // Find the closest teammate
+        let closestTeammate = null;
+        let closestDistance = Infinity;
         
         teammates.forEach(teammate => {
             const dx = teammate.x - player.x;
             const dy = teammate.y - player.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
-            if (distance < 35) {
-                // Calculate score
-                const positionScore = (100 - distance) / 10;
-                const skillScore = teammate.skill / 20;
-                const attackScore = teammate.attack / 30;
-                const totalScore = positionScore + skillScore + attackScore;
-                
-                if (totalScore > bestScore) {
-                    bestScore = totalScore;
-                    bestTeammate = teammate;
-                }
+            if (distance < 40 && distance < closestDistance) {
+                closestDistance = distance;
+                closestTeammate = teammate;
             }
         });
         
-        if (bestTeammate) {
-            const targetX = bestTeammate.x + (Math.random() - 0.5) * 4 * (1 - (player.skill / 100));
-            const targetY = bestTeammate.y + (Math.random() - 0.5) * 4 * (1 - (player.skill / 100));
-            
-            const dx = targetX - ball.x;
-            const dy = targetY - ball.y;
+        if (closestTeammate) {
+            const dx = closestTeammate.x - ball.x;
+            const dy = closestTeammate.y - ball.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             const speed = Math.min(4, player.skill / 25);
             
@@ -683,7 +585,7 @@ function aiPassBall(player) {
             player.element.classList.remove('has-ball');
             ball.isMoving = true;
             
-            addEvent(`${player.name} passes to ${bestTeammate.name}`, 'pass');
+            addEvent(`${player.name} passes to ${closestTeammate.name}`, 'pass');
             updateBall();
         }
     }
@@ -703,14 +605,10 @@ function aiShootBall(player) {
     const dx = goalX - ball.x;
     const dy = goalY - ball.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
+    const power = Math.min(6, player.skill / 20);
     
-    const power = Math.min(7, player.skill / 18);
-    const accuracy = player.shotAccuracy / 100;
-    const randomX = (Math.random() - 0.5) * 6 * (1 - accuracy);
-    const randomY = (Math.random() - 0.5) * 6 * (1 - accuracy);
-    
-    ball.velocityX = (dx / distance) * power + randomX;
-    ball.velocityY = (dy / distance) * power + randomY;
+    ball.velocityX = (dx / distance) * power;
+    ball.velocityY = (dy / distance) * power;
     ball.withPlayer = null;
     ballWithPlayer = null;
     player.hasBall = false;
@@ -750,6 +648,33 @@ function aiDribble(player) {
     setTimeout(() => {
         player.element.classList.remove('running');
     }, 200);
+}
+
+// Update AI player
+function updateAIPlayer(player) {
+    if (!player) return;
+    
+    if (player.hasBall) {
+        // Player has ball - already handled by makeAIDecision
+        return;
+    } else {
+        // Player doesn't have ball - move toward appropriate position
+        if (ballWithPlayer) {
+            if (ballWithPlayer.team === player.team) {
+                // Support teammate with ball
+                moveToSupportPosition(player);
+            } else {
+                // Defend against opponent with ball
+                moveToDefensivePosition(player);
+            }
+        } else if (ball.isMoving) {
+            // Chase loose ball
+            moveTowardBall(player);
+        } else {
+            // Return to position
+            returnToPosition(player);
+        }
+    }
 }
 
 // Move to support position
@@ -833,31 +758,32 @@ function returnToPosition(player) {
     }
 }
 
-// Check for goals - IMPROVED VERSION
+// Check for goals - WORKING VERSION
 function checkForGoal() {
     if (!ball || !ball.isMoving) return;
     
-    // Check if ball is moving fast enough toward goal
-    const ballSpeed = Math.sqrt(ball.velocityX * ball.velocityX + ball.velocityY * ball.velocityY);
+    // Check if ball is in goal area
+    const inLeftGoal = ball.x <= 5 && ball.y >= 40 && ball.y <= 60;
+    const inRightGoal = ball.x >= 95 && ball.y >= 40 && ball.y <= 60;
     
-    // Left goal (Team B scores)
-    if (ball.x <= 3 && ball.y >= 40 && ball.y <= 60 && ballSpeed > 0.8) {
+    if (inLeftGoal) {
+        // Team B scores (ball in left goal)
         teamBScore++;
         updateScoreboard();
-        highlightGoal('left');
         addEvent("GOAL! Team B scores!", 'goal');
+        highlightGoal('left');
         setTimeout(() => {
             resetBall();
         }, 1000);
         return;
     }
     
-    // Right goal (Team A scores)
-    if (ball.x >= 97 && ball.y >= 40 && ball.y <= 60 && ballSpeed > 0.8) {
+    if (inRightGoal) {
+        // Team A scores (ball in right goal)
         teamAScore++;
         updateScoreboard();
-        highlightGoal('right');
         addEvent("GOAL! Team A scores!", 'goal');
+        highlightGoal('right');
         setTimeout(() => {
             resetBall();
         }, 1000);
@@ -910,7 +836,7 @@ function resetBall() {
     // Give ball to random player after delay
     setTimeout(() => {
         const playersNearCenter = playersOnField.filter(p => 
-            Math.abs(p.x - 50) < 25 && Math.abs(p.y - 50) < 25
+            Math.abs(p.x - 50) < 30 && Math.abs(p.y - 50) < 30
         );
         
         if (playersNearCenter.length > 0) {
@@ -994,15 +920,15 @@ function updateBallPossession() {
 
 function updatePossessionStats(team) {
     if (team === 'teamA') {
-        possession.teamA = Math.min(100, possession.teamA + 1.2);
-        possession.teamB = Math.max(0, possession.teamB - 1.2);
+        possession.teamA = Math.min(100, possession.teamA + 1);
+        possession.teamB = Math.max(0, possession.teamB - 1);
     } else {
-        possession.teamB = Math.min(100, possession.teamB + 1.2);
-        possession.teamA = Math.max(0, possession.teamA - 1.2);
+        possession.teamB = Math.min(100, possession.teamB + 1);
+        possession.teamA = Math.max(0, possession.teamA - 1);
     }
     
     document.getElementById('possession').textContent = 
-        `${Math.round(possession.teamA)}% - ${Math.round(possession.teamB)}%`;
+        `${possession.teamA}% - ${possession.teamB}%`;
 }
 
 function updateMatchTime() {
