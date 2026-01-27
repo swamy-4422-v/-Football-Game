@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Football Game - Player & Ball Movement</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
-    <style>
-        /* CSS will be embedded here */
-    </style>
 </head>
 <body>
     <div class="container">
@@ -93,6 +91,9 @@
                         <button class="action-btn" id="shoot-btn">
                             <i class="fas fa-bullseye"></i> Shoot (S)
                         </button>
+                        <button class="action-btn" id="tackle-btn">
+                            <i class="fas fa-hand-rock"></i> Tackle (T)
+                        </button>
                         <button class="action-btn" id="sprint-btn">
                             <i class="fas fa-running"></i> Sprint (Shift)
                         </button>
@@ -124,6 +125,7 @@
                 <div class="event">Welcome to Football Game!</div>
                 <div class="event">Click on a blue player to select them</div>
                 <div class="event">Use arrow buttons or WASD keys to move</div>
+                <div class="event">Press T or click Tackle button to take the ball</div>
             </div>
         </div>
 
@@ -136,6 +138,7 @@
                 <li><strong>Sprint:</strong> Hold Shift while moving or click Sprint button</li>
                 <li><strong>Pass Ball:</strong> Press P or click Pass button when you have the ball</li>
                 <li><strong>Shoot:</strong> Press S or click Shoot button when near opponent's goal</li>
+                <li><strong>Tackle:</strong> Press T or click Tackle button when near opponent with ball</li>
                 <li><strong>Score Goals:</strong> Get the ball into the red team's goal</li>
                 <li><strong>Space Bar:</strong> Start/Pause game</li>
                 <li><strong>Ctrl+R:</strong> Reset game</li>
@@ -143,7 +146,7 @@
         </div>
 
         <footer>
-            <p>**Swamy Hyma Kumar Vechalapu** | Football Game © 2023 | Controls: WASD/Arrows, P=Pass, S=Shoot, C=Select Player, Shift=Sprint</p>
+            <p>**Swamy Hyma Kumar Vechalapu** | Football Game © 2023 | Controls: WASD/Arrows, P=Pass, S=Shoot, T=Tackle, C=Select Player, Shift=Sprint</p>
         </footer>
     </div>
 
