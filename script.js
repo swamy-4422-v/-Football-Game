@@ -1,4 +1,4 @@
-// Football Game JavaScript - Fixed Working Version
+// Football Game JavaScript - Fixed Goal Scoring with Celebrations
 // Game Variables
 let players = [];
 let playersOnField = [];
@@ -25,6 +25,8 @@ let gameActive = true;
 let passCooldown = false;
 let shootCooldown = false;
 let aiMoveCounter = 0;
+let goalJustScored = false;
+let celebrationActive = false;
 
 // Player Data
 const playerData = {
@@ -68,10 +70,10 @@ function initGame() {
     startGameLoop();
 }
 
-// Start game loop for smooth movement
+// Start main game loop for smooth animation
 function startGameLoop() {
     function gameLoop() {
-        if (gameRunning) {
+        if (gameRunning && !celebrationActive) {
             updatePlayerMovement();
             updateBall();
         }
@@ -82,7 +84,7 @@ function startGameLoop() {
 
 // Update player movement based on keys pressed
 function updatePlayerMovement() {
-    if (!selectedPlayer || !gameRunning) return;
+    if (!selectedPlayer || !gameRunning || !selectedPlayer.hasBall || celebrationActive) return;
     
     let moveX = 0;
     let moveY = 0;
@@ -112,7 +114,7 @@ function updatePlayerMovement() {
 
 // Move selected player with direction
 function moveSelectedPlayer(deltaX, deltaY) {
-    if (!selectedPlayer) return;
+    if (!selectedPlayer || celebrationActive) return;
     
     let newX = selectedPlayer.x + deltaX;
     let newY = selectedPlayer.y + deltaY;
@@ -143,14 +145,14 @@ function moveSelectedPlayer(deltaX, deltaY) {
     checkBallContact();
 }
 
-// Start AI updates - FIXED: AI only moves when ball is near
+// Start AI updates
 function startAIUpdates() {
     if (aiUpdateInterval) clearInterval(aiUpdateInterval);
     aiUpdateInterval = setInterval(() => {
-        if (gameRunning && gameActive) {
+        if (gameRunning && gameActive && !celebrationActive) {
             updateAITeam();
         }
-    }, 400); // Slower updates to prevent clustering
+    }, 400);
 }
 
 // Stop AI updates
@@ -161,9 +163,9 @@ function stopAIUpdates() {
     }
 }
 
-// Update AI team - FIXED: Only move players when ball is near
+// Update AI team
 function updateAITeam() {
-    if (!gameRunning || !gameActive) return;
+    if (!gameRunning || !gameActive || celebrationActive) return;
     
     aiMoveCounter++;
     
@@ -177,19 +179,19 @@ function updateAITeam() {
             if (distanceToBall < 40 || 
                 (player.position === 'Defender' && distanceToBall < 50) ||
                 (player.position === 'Goalkeeper' && distanceToBall < 30) ||
-                aiMoveCounter % (10 + index * 2) === 0) { // Stagger movement
+                aiMoveCounter % (10 + index * 2) === 0) {
                 
                 setTimeout(() => {
                     updateAIPlayer(player);
-                }, index * 50); // Stagger updates to prevent clustering
+                }, index * 50);
             }
         }
     });
 }
 
-// Update AI player - FIXED: Better positioning logic
+// Update AI player
 function updateAIPlayer(player) {
-    if (!player || player.hasBall) return;
+    if (!player || player.hasBall || celebrationActive) return;
     
     const currentTime = Date.now();
     const playerId = `player_${player.id}`;
@@ -341,7 +343,8 @@ function createBall() {
         velocityX: 0,
         velocityY: 0,
         withPlayer: null,
-        isMoving: false
+        isMoving: false,
+        lastScorer: null
     };
 
     // Give ball to a random player initially
@@ -351,32 +354,43 @@ function createBall() {
     }, 500);
 }
 
-// Update ball position
+// Update ball position - FIXED FOR BETTER GOAL DETECTION
 function updateBall() {
-    if (!ball) return;
+    if (!ball || celebrationActive) return;
     
     // Apply velocity
     ball.x += ball.velocityX;
     ball.y += ball.velocityY;
     
-    // Bounce off walls - FIXED: Wider goal area
-    if (ball.x <= 2 && (ball.y < 40 || ball.y > 60)) { // Not in goal
-        ball.velocityX *= -0.8;
-        ball.x = 2.1;
-        addEvent("Ball hits the wall!", 'wall');
+    // Check for goal BEFORE boundary checks
+    checkForGoal();
+    
+    // Only continue if no goal was scored
+    if (goalJustScored) {
+        return;
     }
-    if (ball.x >= 98 && (ball.y < 40 || ball.y > 60)) { // Not in goal
-        ball.velocityX *= -0.8;
-        ball.x = 97.9;
-        addEvent("Ball hits the wall!", 'wall');
-    }
-    if (ball.y <= 2) {
-        ball.velocityY *= -0.8;
-        ball.y = 2.1;
-    }
-    if (ball.y >= 98) {
-        ball.velocityY *= -0.8;
-        ball.y = 97.9;
+    
+    // Bounce off walls (except goal areas)
+    const inLeftGoalArea = ball.x <= 5 && ball.y >= 35 && ball.y <= 65;
+    const inRightGoalArea = ball.x >= 95 && ball.y >= 35 && ball.y <= 65;
+    
+    if (!inLeftGoalArea && !inRightGoalArea) {
+        if (ball.x <= 2) {
+            ball.velocityX = Math.abs(ball.velocityX) * 0.8;
+            ball.x = 2.1;
+        }
+        if (ball.x >= 98) {
+            ball.velocityX = -Math.abs(ball.velocityX) * 0.8;
+            ball.x = 97.9;
+        }
+        if (ball.y <= 2) {
+            ball.velocityY = Math.abs(ball.velocityY) * 0.8;
+            ball.y = 2.1;
+        }
+        if (ball.y >= 98) {
+            ball.velocityY = -Math.abs(ball.velocityY) * 0.8;
+            ball.y = 97.9;
+        }
     }
     
     // Apply friction
@@ -401,18 +415,18 @@ function updateBall() {
     // Check for player contact
     checkBallContact();
     
-    // Check for goals - FIXED: Proper goal detection
-    checkForGoal();
-    
     // Continue animation if still moving
-    if (ball.isMoving) {
+    if (ball.isMoving && !ballAnimationFrame) {
         ballAnimationFrame = requestAnimationFrame(updateBall);
+    } else if (!ball.isMoving && ballAnimationFrame) {
+        cancelAnimationFrame(ballAnimationFrame);
+        ballAnimationFrame = null;
     }
 }
 
-// Check if ball contacts a player - FIXED: Better interception
+// Check if ball contacts a player
 function checkBallContact() {
-    if (!ball || ball.withPlayer || !ball.isMoving) return;
+    if (!ball || ball.withPlayer || !ball.isMoving || celebrationActive) return;
     
     playersOnField.forEach(player => {
         if (player.hasBall) return;
@@ -431,7 +445,7 @@ function checkBallContact() {
 
 // Give ball to player
 function giveBallToPlayer(player) {
-    if (ball.withPlayer === player) return;
+    if (ball.withPlayer === player || !player || celebrationActive) return;
     
     // Remove ball from previous player
     if (ball.withPlayer) {
@@ -472,14 +486,16 @@ function giveBallToPlayer(player) {
     // If AI player gets the ball, make AI decision after delay
     if (player.team === 'team-b' && gameRunning) {
         setTimeout(() => {
-            makeAIDecision(player);
+            if (!celebrationActive) {
+                makeAIDecision(player);
+            }
         }, 800);
     }
 }
 
 // Move ball with player
 function moveBallWithPlayer() {
-    if (!ball.withPlayer) return;
+    if (!ball.withPlayer || celebrationActive) return;
     
     ball.x = ball.withPlayer.x;
     ball.y = ball.withPlayer.y - 3;
@@ -487,10 +503,10 @@ function moveBallWithPlayer() {
     ball.element.style.top = `${ball.y}%`;
 }
 
-// Pass the ball - FIXED: Working pass system
+// Pass the ball
 function passBall() {
-    if (!selectedPlayer || selectedPlayer !== ball.withPlayer) {
-        addEvent("You don't have the ball!");
+    if (!selectedPlayer || selectedPlayer !== ball.withPlayer || celebrationActive) {
+        addEvent("You don't have the ball!", 'warning');
         return;
     }
     
@@ -542,6 +558,7 @@ function passBall() {
             selectedPlayer.hasBall = false;
             selectedPlayer.element.classList.remove('has-ball');
             ball.isMoving = true;
+            ball.lastScorer = null; // Reset last scorer on pass
             
             // Set cooldown
             passCooldown = true;
@@ -587,6 +604,7 @@ function attemptClearance(player) {
     player.hasBall = false;
     player.element.classList.remove('has-ball');
     ball.isMoving = true;
+    ball.lastScorer = null;
     
     // Set cooldown
     passCooldown = true;
@@ -600,10 +618,10 @@ function attemptClearance(player) {
     }
 }
 
-// Shoot the ball - FIXED: Better shooting from distance
+// Shoot the ball - IMPROVED FOR GOAL SCORING
 function shootBall() {
-    if (!selectedPlayer || selectedPlayer !== ball.withPlayer) {
-        addEvent("You don't have the ball!");
+    if (!selectedPlayer || selectedPlayer !== ball.withPlayer || celebrationActive) {
+        addEvent("You don't have the ball!", 'warning');
         return;
     }
     
@@ -613,7 +631,7 @@ function shootBall() {
     const distanceToGoal = selectedPlayer.team === 'team-a' ? 
         100 - selectedPlayer.x : selectedPlayer.x;
     
-    if (distanceToGoal > 60) {
+    if (distanceToGoal > 70) {
         addEvent("Too far from goal!");
         return;
     }
@@ -622,10 +640,10 @@ function shootBall() {
     let goalX, goalY;
     if (selectedPlayer.team === 'team-a') {
         goalX = 98; // Right goal
-        goalY = 50 + (Math.random() - 0.5) * 8; // Add some variation
+        goalY = 50 + (Math.random() - 0.5) * 15; // More variation for realism
     } else {
         goalX = 2; // Left goal
-        goalY = 50 + (Math.random() - 0.5) * 8;
+        goalY = 50 + (Math.random() - 0.5) * 15;
     }
     
     // Calculate direction to goal
@@ -635,14 +653,17 @@ function shootBall() {
     
     // Shoot power based on player skill and distance
     const basePower = selectedPlayer.attack / 15;
-    const distanceFactor = Math.max(0.5, 1 - (distanceToGoal / 80));
-    const power = Math.min(8, basePower * distanceFactor);
+    const distanceFactor = Math.max(0.4, 1 - (distanceToGoal / 80));
+    const power = Math.min(9, basePower * distanceFactor * (0.9 + Math.random() * 0.2));
     
     // Add accuracy based on skill
     const accuracy = selectedPlayer.skill / 100;
-    const inaccuracy = (1 - accuracy) * 0.6;
+    const inaccuracy = (1 - accuracy) * 0.8;
     const offsetX = (Math.random() - 0.5) * inaccuracy;
     const offsetY = (Math.random() - 0.5) * inaccuracy;
+    
+    // Store who shot the ball (for goal attribution)
+    ball.lastScorer = selectedPlayer;
     
     // Kick the ball toward goal
     ball.velocityX = (dx / distance) * power + offsetX;
@@ -657,7 +678,7 @@ function shootBall() {
     shootCooldown = true;
     setTimeout(() => { shootCooldown = false; }, 800);
     
-    addEvent(`${selectedPlayer.name} shoots!`, 'shot');
+    addEvent(`${selectedPlayer.name} shoots from distance!`, 'shot');
     
     // Start ball animation
     if (!ballAnimationFrame) {
@@ -667,17 +688,17 @@ function shootBall() {
 
 // AI Decision making
 function makeAIDecision(player) {
-    if (!gameRunning || !ballWithPlayer || ballWithPlayer !== player) return;
+    if (!gameRunning || !ballWithPlayer || ballWithPlayer !== player || celebrationActive) return;
     
     const decision = Math.random();
     
     // Check shooting chance first
     const distanceToGoal = player.team === 'team-b' ? player.x : 100 - player.x;
     
-    if (distanceToGoal < 40 && decision < 0.4) {
+    if (distanceToGoal < 45 && decision < 0.5) {
         // Shoot if close to goal
         aiShootBall(player);
-    } else if (decision < 0.7) {
+    } else if (decision < 0.8) {
         // Pass to teammate
         aiPassBall(player);
     } else {
@@ -734,6 +755,7 @@ function aiPassBall(player) {
             player.hasBall = false;
             player.element.classList.remove('has-ball');
             ball.isMoving = true;
+            ball.lastScorer = null;
             
             addEvent(`${player.name} passes to ${bestTeammate.name}`, 'pass');
             return true;
@@ -749,17 +771,21 @@ function aiShootBall(player) {
     let goalX, goalY;
     if (player.team === 'team-b') {
         goalX = 2;
-        goalY = 50 + (Math.random() - 0.5) * 10;
+        goalY = 50 + (Math.random() - 0.5) * 15;
     } else {
         goalX = 98;
-        goalY = 50 + (Math.random() - 0.5) * 10;
+        goalY = 50 + (Math.random() - 0.5) * 15;
     }
     
     const dx = goalX - ball.x;
     const dy = goalY - ball.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    const power = Math.min(6, player.attack / 20);
+    const power = Math.min(7, player.attack / 18);
     
+    // Store who shot the ball
+    ball.lastScorer = player;
+    
+    // Kick the ball toward goal
     ball.velocityX = (dx / distance) * power;
     ball.velocityY = (dy / distance) * power;
     ball.withPlayer = null;
@@ -805,7 +831,7 @@ function aiDribble(player) {
     return true;
 }
 
-// AI movement helper functions - FIXED: Better positioning
+// AI movement helper functions
 function moveToSupportPosition(player) {
     if (!ballWithPlayer) return;
     
@@ -815,7 +841,7 @@ function moveToSupportPosition(player) {
     const distance = Math.sqrt(dx * dx + dy * dy);
     
     // Support distance with variation to prevent clustering
-    const supportDistance = 15 + (player.id % 5); // Different for each player
+    const supportDistance = 15 + (player.id % 5);
     
     if (distance > supportDistance + 5 || distance < supportDistance - 5) {
         const moveX = player.x + (dx / distance) * 0.5;
@@ -835,7 +861,7 @@ function moveToDefensivePosition(player) {
     const goalX = player.team === 'team-a' ? 10 : 90;
     
     // Position between opponent and goal with variation
-    const variation = (player.id % 3) - 1; // -1, 0, or 1
+    const variation = (player.id % 3) - 1;
     const targetX = opponent.x + (goalX - opponent.x) * 0.4;
     const targetY = opponent.y + variation * 5;
     
@@ -897,82 +923,191 @@ function getDistance(x1, y1, x2, y2) {
     return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
 }
 
-// Check for goals - FIXED: Proper goal detection
+// Check for goals - COMPLETELY REWORKED FOR BETTER DETECTION
 function checkForGoal() {
-    if (!ball || !ball.isMoving) return;
+    if (!ball || !ball.isMoving || goalJustScored || celebrationActive) return;
     
-    // Check if ball is in goal area (wider detection)
+    // Check if ball has entered goal area
+    const ballSpeed = Math.sqrt(ball.velocityX * ball.velocityX + ball.velocityY * ball.velocityY);
+    
+    // More lenient goal detection - wider area
     const inLeftGoal = ball.x <= 5 && ball.y >= 35 && ball.y <= 65;
     const inRightGoal = ball.x >= 95 && ball.y >= 35 && ball.y <= 65;
     
-    if (inLeftGoal) {
+    // Also check for balls moving into goal area
+    const movingIntoLeftGoal = ball.x <= 10 && ball.x > 5 && ball.velocityX < -0.5;
+    const movingIntoRightGoal = ball.x >= 90 && ball.x < 95 && ball.velocityX > 0.5;
+    
+    if ((inLeftGoal || (movingIntoLeftGoal && ball.x <= 8)) && ballSpeed > 0.3) {
         // Team B scores (ball in left goal)
+        goalJustScored = true;
+        celebrationActive = true;
         teamBScore++;
         updateScoreboard();
-        addEvent("⚽ GOAL! Team B scores!", 'goal');
-        highlightGoal('left');
+        
+        // Determine scorer
+        const scorerName = ball.lastScorer ? ball.lastScorer.name : "Team B";
+        addEvent(`⚽ GOAL! ${scorerName} scores for Team B!`, 'goal');
+        
+        // Celebrate and reset
+        celebrateGoal('team-b');
         setTimeout(() => {
+            goalJustScored = false;
+            celebrationActive = false;
             resetBall();
-        }, 1500);
-        return;
+        }, 2500);
+        return true;
     }
     
-    if (inRightGoal) {
+    if ((inRightGoal || (movingIntoRightGoal && ball.x >= 92)) && ballSpeed > 0.3) {
         // Team A scores (ball in right goal)
+        goalJustScored = true;
+        celebrationActive = true;
         teamAScore++;
         updateScoreboard();
-        addEvent("⚽ GOAL! Team A scores!", 'goal');
-        highlightGoal('right');
+        
+        // Determine scorer
+        const scorerName = ball.lastScorer ? ball.lastScorer.name : "Team A";
+        addEvent(`⚽ GOAL! ${scorerName} scores for Team A!`, 'goal');
+        
+        // Celebrate and reset
+        celebrateGoal('team-a');
         setTimeout(() => {
+            goalJustScored = false;
+            celebrationActive = false;
             resetBall();
-        }, 1500);
-        return;
+        }, 2500);
+        return true;
     }
+    
+    return false;
 }
 
-// Highlight goal animation
-function highlightGoal(side) {
-    const goalElement = side === 'left' ? 
-        document.querySelector('.left-goal') : 
-        document.querySelector('.right-goal');
+// Celebrate goal with team celebrations
+function celebrateGoal(scoringTeam) {
+    // Stop all movement
+    if (ballAnimationFrame) {
+        cancelAnimationFrame(ballAnimationFrame);
+        ballAnimationFrame = null;
+    }
+    
+    // Highlight the goal that was scored
+    const goalElement = scoringTeam === 'team-a' ? 
+        document.querySelector('.right-goal') : 
+        document.querySelector('.left-goal');
     
     if (goalElement) {
-        goalElement.style.backgroundColor = 'rgba(16, 185, 129, 0.8)';
-        goalElement.style.boxShadow = '0 0 40px rgba(16, 185, 129, 0.9)';
+        goalElement.style.backgroundColor = 'rgba(16, 185, 129, 0.9)';
+        goalElement.style.boxShadow = '0 0 50px rgba(16, 185, 129, 1)';
         
-        setTimeout(() => {
-            goalElement.style.backgroundColor = '';
-            goalElement.style.boxShadow = '';
-        }, 1500);
+        // Pulsing effect
+        let pulseCount = 0;
+        const pulseInterval = setInterval(() => {
+            pulseCount++;
+            if (pulseCount > 4) {
+                clearInterval(pulseInterval);
+                goalElement.style.backgroundColor = '';
+                goalElement.style.boxShadow = '';
+            }
+        }, 400);
     }
+    
+    // Make scoring team's players celebrate
+    playersOnField.forEach(player => {
+        if (player.team === scoringTeam) {
+            // Add celebration animation
+            player.element.classList.add('celebrating');
+            
+            // Make them jump and move slightly
+            const originalX = player.x;
+            const originalY = player.y;
+            
+            // Jump up
+            player.element.style.transition = 'all 0.5s ease';
+            player.element.style.transform = 'translate(-50%, -60%) scale(1.1)';
+            
+            // Return to normal after celebration
+            setTimeout(() => {
+                player.element.classList.remove('celebrating');
+                player.element.style.transform = 'translate(-50%, -50%) scale(1)';
+                player.element.style.transition = 'all 0.3s ease';
+            }, 2000);
+        } else {
+            // Make conceding team's players look dejected
+            player.element.classList.add('stunned');
+            setTimeout(() => {
+                player.element.classList.remove('stunned');
+            }, 1500);
+        }
+    });
+    
+    // Add confetti effect
+    createConfetti();
 }
 
-// Reset ball position
+// Create confetti effect for goals
+function createConfetti() {
+    const field = document.getElementById('football-field');
+    const confetti = document.createElement('div');
+    confetti.className = 'confetti';
+    field.appendChild(confetti);
+    
+    // Remove confetti after animation
+    setTimeout(() => {
+        confetti.remove();
+    }, 3000);
+}
+
+// Reset ball position after goal
 function resetBall() {
     if (ballAnimationFrame) {
         cancelAnimationFrame(ballAnimationFrame);
         ballAnimationFrame = null;
     }
     
+    // Remove ball from any player
     if (ballWithPlayer) {
         ballWithPlayer.hasBall = false;
         ballWithPlayer.element.classList.remove('has-ball');
         ballWithPlayer = null;
     }
     
+    // Reset all celebration states
+    playersOnField.forEach(player => {
+        player.hasBall = false;
+        player.element.classList.remove('has-ball');
+        player.element.classList.remove('celebrating');
+        player.element.classList.remove('stunned');
+        player.element.style.transform = 'translate(-50%, -50%)';
+        player.element.style.transition = 'all 0.2s ease';
+        
+        // Return players to their positions
+        player.x = player.originalPosition.x;
+        player.y = player.originalPosition.y;
+        player.element.style.left = `${player.x}%`;
+        player.element.style.top = `${player.y}%`;
+    });
+    
+    // Reset ball to center
     ball.x = 50;
     ball.y = 50;
     ball.velocityX = 0;
     ball.velocityY = 0;
     ball.withPlayer = null;
     ball.isMoving = false;
+    ball.lastScorer = null;
     ball.element.style.left = '50%';
     ball.element.style.top = '50%';
     ball.element.classList.remove('moving');
     
     updateBallPossession();
     
-    // Give ball to team that didn't concede after delay
+    // Reset selected player if needed
+    if (selectedPlayer) {
+        selectPlayer(selectedPlayer);
+    }
+    
+    // Give ball to team that conceded after delay
     setTimeout(() => {
         const teamToGetBall = teamAScore > teamBScore ? 'team-b' : 
                              teamBScore > teamAScore ? 'team-a' : 
@@ -992,7 +1127,7 @@ function resetBall() {
 
 // Select a player
 function selectPlayer(player) {
-    if (player.team !== 'team-a') return;
+    if (player.team !== 'team-a' || celebrationActive) return;
     
     // Deselect previous player
     if (selectedPlayer) {
@@ -1005,7 +1140,7 @@ function selectPlayer(player) {
     player.element.classList.add('selected');
     
     document.getElementById('selected-player').textContent = player.name;
-    addEvent(`Selected ${player.name}`);
+    addEvent(`Selected ${player.name}`, 'selection');
 }
 
 // Select next player
@@ -1022,6 +1157,8 @@ function selectNextPlayer() {
 
 // Toggle sprint mode
 function toggleSprint() {
+    if (celebrationActive) return;
+    
     isSprinting = !isSprinting;
     const sprintBtn = document.getElementById('sprint-btn');
     
@@ -1045,10 +1182,12 @@ function updateScoreboard() {
     
     // Animate score update
     const scoreElement = document.querySelector('.score');
-    scoreElement.style.transform = 'scale(1.3)';
+    scoreElement.style.transform = 'scale(1.5)';
+    scoreElement.style.color = '#fbbf24';
     setTimeout(() => {
         scoreElement.style.transform = 'scale(1)';
-    }, 300);
+        scoreElement.style.color = '#fff';
+    }, 500);
 }
 
 function updateBallPossession() {
@@ -1057,8 +1196,8 @@ function updateBallPossession() {
         possessionElement.textContent = ballWithPlayer.name;
         possessionElement.style.color = ballWithPlayer.team === 'team-a' ? '#3b82f6' : '#ef4444';
     } else {
-        possessionElement.textContent = 'No one';
-        possessionElement.style.color = '#fff';
+        possessionElement.textContent = 'Ball is loose';
+        possessionElement.style.color = '#fbbf24';
     }
 }
 
@@ -1094,21 +1233,27 @@ function addEvent(message, type = '') {
     const eventElement = document.createElement('div');
     eventElement.className = `event ${type}`;
     
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    eventElement.textContent = `[${time}] ${message}`;
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    eventElement.innerHTML = `<span class="event-time">[${time}]</span> ${message}`;
     
     eventLog.prepend(eventElement);
     
-    // Keep only last 10 events
+    // Keep only last 15 events
     const events = eventLog.querySelectorAll('.event');
-    if (events.length > 10) {
+    if (events.length > 15) {
         events[events.length - 1].remove();
     }
+    
+    // Scroll to top
+    eventLog.scrollTop = 0;
 }
 
 // Game control functions
 function startGame() {
-    if (gameRunning) return;
+    if (gameRunning || celebrationActive) {
+        addEvent("Game is already running!", 'warning');
+        return;
+    }
     
     gameRunning = true;
     gameActive = true;
@@ -1119,12 +1264,13 @@ function startGame() {
         matchTime++;
         updateMatchTime();
         
+        // End game after 3 minutes
         if (matchTime >= 180) {
             endGame();
         }
     }, 1000);
     
-    addEvent("Game started!");
+    addEvent("Game started! Good luck!", 'system');
     startAIUpdates();
     
     if (!selectedPlayer) {
@@ -1136,23 +1282,38 @@ function startGame() {
 }
 
 function pauseGame() {
+    if (matchTime === 0 && !gameRunning) {
+        addEvent("Start the game first!", 'warning');
+        return;
+    }
+    
+    if (celebrationActive) {
+        addEvent("Cannot pause during celebration!", 'warning');
+        return;
+    }
+    
     gameRunning = !gameRunning;
     gameActive = gameRunning;
     
     if (gameRunning) {
         document.getElementById('game-status').textContent = 'Playing';
         document.getElementById('game-status').style.color = '#00ff88';
-        addEvent("Game resumed");
+        addEvent("Game resumed", 'system');
         startAIUpdates();
     } else {
         document.getElementById('game-status').textContent = 'Paused';
         document.getElementById('game-status').style.color = '#f59e0b';
-        addEvent("Game paused");
+        addEvent("Game paused", 'system');
         stopAIUpdates();
     }
 }
 
 function resetGame() {
+    if (celebrationActive) {
+        addEvent("Please wait for celebration to end!", 'warning');
+        return;
+    }
+    
     gameRunning = false;
     gameActive = false;
     if (matchInterval) {
@@ -1181,6 +1342,8 @@ function resetGame() {
     playerCollisionCooldown = {};
     lastAIPositionUpdate = {};
     aiMoveCounter = 0;
+    goalJustScored = false;
+    celebrationActive = false;
     
     createPlayers();
     createBall();
@@ -1194,7 +1357,15 @@ function resetGame() {
     sprintBtn.style.transform = 'scale(1)';
     sprintBtn.innerHTML = '<i class="fas fa-running"></i> Sprint (Shift)';
     
-    addEvent("Game reset");
+    // Clear event log except instructions
+    const eventLog = document.getElementById('event-log');
+    eventLog.innerHTML = `
+        <div class="event">Welcome to Football Game!</div>
+        <div class="event">Click on a blue player to select them</div>
+        <div class="event">Use arrow buttons or WASD keys to move</div>
+    `;
+    
+    addEvent("Game reset. Ready to play!", 'system');
 }
 
 function endGame() {
@@ -1217,30 +1388,35 @@ function endGame() {
     
     let resultMessage = '';
     if (teamAScore > teamBScore) {
-        resultMessage = `You win! ${teamAScore}-${teamBScore}`;
+        resultMessage = `🎉 You win! ${teamAScore}-${teamBScore}`;
     } else if (teamAScore < teamBScore) {
-        resultMessage = `Computer wins! ${teamBScore}-${teamAScore}`;
+        resultMessage = `😔 Computer wins! ${teamBScore}-${teamAScore}`;
     } else {
-        resultMessage = `Draw! ${teamAScore}-${teamBScore}`;
+        resultMessage = `🤝 Draw! ${teamAScore}-${teamBScore}`;
     }
     
-    addEvent(`Game over! ${resultMessage}`);
+    addEvent(`Game over! ${resultMessage}`, 'system');
+    
+    // Show match stats
+    setTimeout(() => {
+        addEvent(`Match Stats: ${Math.round(possession.teamA)}% possession, ${matchTime} seconds played`, 'system');
+    }, 1000);
 }
 
 // Setup event listeners
 function setupEventListeners() {
     // Movement buttons
     document.getElementById('move-up').addEventListener('click', () => {
-        if (selectedPlayer && gameRunning) moveSelectedPlayer(0, -2);
+        if (selectedPlayer && gameRunning && !celebrationActive) moveSelectedPlayer(0, -2);
     });
     document.getElementById('move-down').addEventListener('click', () => {
-        if (selectedPlayer && gameRunning) moveSelectedPlayer(0, 2);
+        if (selectedPlayer && gameRunning && !celebrationActive) moveSelectedPlayer(0, 2);
     });
     document.getElementById('move-left').addEventListener('click', () => {
-        if (selectedPlayer && gameRunning) moveSelectedPlayer(-2, 0);
+        if (selectedPlayer && gameRunning && !celebrationActive) moveSelectedPlayer(-2, 0);
     });
     document.getElementById('move-right').addEventListener('click', () => {
-        if (selectedPlayer && gameRunning) moveSelectedPlayer(2, 0);
+        if (selectedPlayer && gameRunning && !celebrationActive) moveSelectedPlayer(2, 0);
     });
 
     // Action buttons
@@ -1258,7 +1434,13 @@ function setupEventListeners() {
 // Setup keyboard controls
 function setupKeyboardControls() {
     document.addEventListener('keydown', (e) => {
-        if (!gameRunning && e.key !== ' ') return;
+        if (celebrationActive && ![' '].includes(e.key)) {
+            return;
+        }
+        
+        if (!gameRunning && ![' ', 'c', 'C'].includes(e.key)) {
+            return;
+        }
         
         // Store key state
         keysPressed[e.key] = true;
@@ -1266,29 +1448,37 @@ function setupKeyboardControls() {
         // Check for Shift key
         if (e.key === 'Shift') {
             shiftPressed = true;
-            if (!isSprinting) {
+            if (!isSprinting && selectedPlayer && gameRunning && !celebrationActive) {
                 toggleSprint();
             }
         }
         
         switch(e.key.toLowerCase()) {
             case ' ':
-                if (!gameRunning) startGame();
+                if (!gameRunning) {
+                    startGame();
+                } else if (!celebrationActive) {
+                    pauseGame();
+                }
+                e.preventDefault();
                 break;
             case 'p':
-                if (e.key === 'p') {
-                    e.preventDefault();
+                if (gameRunning && !celebrationActive) {
                     passBall();
+                    e.preventDefault();
                 }
                 break;
             case 's':
-                if (e.key === 's') {
-                    e.preventDefault();
+                if (gameRunning && !celebrationActive) {
                     shootBall();
+                    e.preventDefault();
                 }
                 break;
             case 'c':
-                selectNextPlayer();
+                if (!celebrationActive) {
+                    selectNextPlayer();
+                }
+                e.preventDefault();
                 break;
         }
     });
@@ -1300,13 +1490,14 @@ function setupKeyboardControls() {
         // Handle Shift key release
         if (e.key === 'Shift') {
             shiftPressed = false;
-            if (isSprinting) {
+            if (isSprinting && selectedPlayer && !celebrationActive) {
                 toggleSprint();
             }
         }
         
         // Remove running animation when movement keys are released
-        if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(e.key.toLowerCase())) {
+        const movementKeys = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'];
+        if (movementKeys.includes(e.key.toLowerCase())) {
             if (selectedPlayer) {
                 selectedPlayer.element.classList.remove('running');
             }
@@ -1319,7 +1510,7 @@ window.addEventListener('load', initGame);
 
 // Field click for player movement
 document.getElementById('football-field').addEventListener('click', function(e) {
-    if (!selectedPlayer || !gameRunning) return;
+    if (!selectedPlayer || !gameRunning || celebrationActive) return;
     
     const rect = this.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
@@ -1354,6 +1545,8 @@ window.game = {
         selectedPlayer: selectedPlayer?.name,
         ballWithPlayer: ballWithPlayer?.name,
         possession,
-        ballPosition: { x: ball?.x, y: ball?.y }
+        ballPosition: { x: ball?.x, y: ball?.y },
+        celebrationActive,
+        goalJustScored
     })
 };
